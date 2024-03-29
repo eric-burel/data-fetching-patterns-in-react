@@ -56,8 +56,9 @@ const Component = ({id}) => {
 
   useEffect(() => {
     const fetchData = async () => {
-      const data = await fetch(`/api/users/${id}`);
-      setData(data);
+      const response = await fetch(`/api/users/${id}`);
+      const jsonData = await response.json();
+      setData(jsonData);
     };
 
     fetchData();
@@ -65,7 +66,7 @@ const Component = ({id}) => {
 
   // the render logic
   return <div>
-    <h2>{data.name}</h2>
+    <h2>{data?.name}</h2>
   </div>
 }
 ```
