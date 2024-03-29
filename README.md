@@ -51,7 +51,7 @@ Now let’s create the `Profile` component, make a request, and render the resul
 Within the `useEffect` hook, we initiate a network request to fetch data asynchronously. Once the data is received from the server, we utilize the `useState` API to update the component's internal state. This ensures that the fetched data is preserved across different render cycles. React, informed by the updated state, then proceeds to the next render cycle, incorporating the freshly fetched data into the component's output.
 
 ```ts
-const Component = ({id}) => {
+const Component = ({ id }) => {
   const [data, setData] = useState();
 
   useEffect(() => {
@@ -64,7 +64,7 @@ const Component = ({id}) => {
     fetchData();
   }, [id]);
 
-  // the render logic
+  // the rendering logic
   return <div>
     <h2>{data?.name}</h2>
   </div>
@@ -296,7 +296,22 @@ const useProfileData = (id: string) => {
 
 So we can think of `Friends` and `UserBrief` as presentional component that only accepts data and render DOM as result. This way we could develop these component separately (adding styles for different states, for example). These presentational components normally are easy to test and modify as we have separate the data fetching and rendering.
 
-However, there are cases while you cannot parallel requests, for example, we will make a recommendation feeds list on the `Profile` page, and this recommendation needs users’ **interests**. We can only send a request for fetching the recommendation when we have the response of the **user** API.
+However, there are cases while you cannot parallel requests, for example, we will make a recommendation feeds list on the `Profile` page, and this recommendation needs users’ **interests**, the API is defined as `/feeds/${interest-category}` for example. 
+
+```json
+{
+  "id": "u1",
+  "name": "Juntao Qiu",
+  "bio": "Developer, Educator, Author",
+  "interests": [
+    "Technology",
+    "Outdoors",
+    "Travel"
+  ]
+}
+```
+
+That means we can only send a request for fetching the recommendation articles **after** we have already have the response of the **user** API.
 
 We'll explore this matter further in the Declarative Data Fetching section. Meanwhile, let's enhance the `Friend` list component as an example to showcase the technique of code splitting and lazy loading.
 
