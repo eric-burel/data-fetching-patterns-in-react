@@ -46,7 +46,36 @@ The friend API `/users/<id>/friends` endpoint returns a list of friends for a gi
 
 ## Implement the Profile component
 
-Now let’s create the `Profile` component, make a request, and render the result. The *standard* way of doing it in React is:
+Now let’s create the `Profile` component, make a request, and render the result. React's primary role is to manage the rednering of data into the DOM, not fetching data itself. However, the useEffect hook offers a pathway for incorporating non-rendering tasks like data fetching, executing after React has completed rendering. If that effect changed the data in some way, React schedules an re-render to reflect these changes.
+
+Within the `useEffect` hook, we initiate a network request to fetch data asynchronously. Once the data is received from the server, we utilize the `useState` API to update the component's internal state. This ensures that the fetched data is preserved across different render cycles. React, informed by the updated state, then proceeds to the next render cycle, incorporating the freshly fetched data into the component's output.
+
+```ts
+const Component = ({id}) => {
+  const [data, setData] = useState();
+
+  useEffect(() => {
+    const fetchData = async () => {
+      const data = await fetch(`/api/users/${id}`);
+      setData(data);
+    };
+
+    fetchData();
+  }, [id]);
+
+  // the render logic
+  return <div>
+    <h2>{data.name}</h2>
+  </div>
+}
+```
+
+
+In practical applications, it's essential to handle various states such as loading, error, and displaying fallbacks when data isn't immediately available. For instance, the following image illustrates different statuses within a User component.
+
+![Different status of a component](images/status-of-profile-component.png)
+
+Back to our `Profile` component example, our initial implementation could be something like the following de-facto way in a typical React codebases:
 
 ```jsx
 const Profile = ({ id }: { id: string }) => {
@@ -82,9 +111,9 @@ const Profile = ({ id }: { id: string }) => {
 };
 ```
 
-For the `Profile` component, we initiate states for loading, errors, and user data. Using `useEffect`, we fetch user data based on `id`, toggling loading status and handling errors accordingly. Upon successful data retrieval, we update the user state, else display a loading indicator.
+For the `Profile` component, we initiate states for loading, errors, and user data with `useState`. Using `useEffect`, we fetch user data based on `id`, toggling loading status and handling errors accordingly. Upon successful data retrieval, we update the user state, else display a loading indicator. (While it's possible to abstract fetchUser into a custom hook for cleaner code and reusability, it's demonstrated within the component for a comprehensive overview of its structure.)
 
-The `get` function simplifies fetching data from a specific endpoint by appending the endpoint to a predefined base URL. It checks the response's success status and either returns the parsed JSON data or throws an error for unsuccessful requests, streamlining error handling and data retrieval in our application.
+The `get` function, as demonstrated below, simplifies fetching data from a specific endpoint by appending the endpoint to a predefined base URL. It checks the response's success status and either returns the parsed JSON data or throws an error for unsuccessful requests, streamlining error handling and data retrieval in our application. Note it's pure TypeScript code and can be used in other non-React parts of the application.
 
 ```jsx
 const baseurl = "https://icodeit.com.au/api/v2";
@@ -195,7 +224,7 @@ Luckily such cases can be eliminated simply by parallelizing requests at the upp
 
 ### Parallel requests with Promise.all
 
-We could use the **Promise** API `Promise.all` to send both requests for the user’s basic information and their friends list.
+We could use the **Promise** API `Promise.all` to send both requests for the user’s basic information and their friends list. `Promise.all` is a JavaScript method that allows for the concurrent execution of multiple promises. It takes an array of promises as input and returns a single Promise that resolves when all of the input promises have resolved, providing their results as an array. If any of the promises fail, `Promise.all` immediately rejects with the reason of the first promise that rejects. 
 
 ```jsx
 const Profile = ({ id }: { id: string }) => {
