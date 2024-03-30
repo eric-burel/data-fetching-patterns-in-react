@@ -846,6 +846,8 @@ Consider the Jira issue page as an example. The top navigation and sidebar are s
 
 ![Using patterns together](images/multiple-patterns-trans.png)
 
+Moreover, certain strategies require additional setup compared to default, less optimized solutions. For instance, implementing lazy loading necessitates bundler support. If your current bundler lacks this capability, an upgrade may be required, which could be impractical for older, less stable systems. Additionally, Server Components and streaming SSR are not yet widely implemented across projects, so there may be a waiting period until your organization's infrastructure supports these features.
+
 ## Conclusion
 
 Data fetching is a nuanced aspect of development, yet mastering the appropriate techniques can vastly enhance our applications. As we conclude our journey through data fetching and content rendering strategies within the context of React, it's crucial to highlight our main insights:
