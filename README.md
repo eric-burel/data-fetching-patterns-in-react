@@ -296,7 +296,7 @@ const useProfileData = (id: string) => {
 
 So we can think of `Friends` and `UserBrief` as presentional component that only accepts data and render DOM as result. This way we could develop these component separately (adding styles for different states, for example). These presentational components normally are easy to test and modify as we have separate the data fetching and rendering.
 
-However, there are cases while you cannot parallel requests, for example, we will make a recommendation feeds list on the `Profile` page, and this recommendation needs users’ **interests**, the API is defined as `/feeds/${interest-category}` for example. 
+However, there are cases while you cannot parallel requests, for example, we will make a recommendation feeds list on the `Profile` page, and this recommendation needs users’ **interests**, the API is defined as `/users/recommendations/<interest>` for example. 
 
 ```json
 {
