@@ -68,7 +68,7 @@ function Navigation() {
 }
 ```
 
-At first glance, the mixture of JavaScript with HTML tags might seem strange (it's called JSX, a syntax extension to JavaScript). To make this code functional, a compiler is required to translate the JSX into valid JavaScript code. After being compiled by [Babel](https://babeljs.io/), the code would roughly translate to the following:
+At first glance, the mixture of JavaScript with HTML tags might seem strange (it's called JSX, a syntax extension to JavaScript. For those using TypeScript, a similar syntax called TSX is used). To make this code functional, a compiler is required to translate the JSX into valid JavaScript code. After being compiled by [Babel](https://babeljs.io/), the code would roughly translate to the following:
 
 ```js
 function Navigation() {
@@ -343,6 +343,11 @@ This overview offers just a quick glimpse into the concepts utilized throughout 
 Let’s create the `Profile` component to make a request and render the result. Our initial implementation could be something like the following de-facto way in a typical React codebases:
 
 ```jsx
+import { useEffect, useState } from "react";
+import { get } from "../utils.ts";
+
+import type { User } from "../types.ts";
+
 const Profile = ({ id }: { id: string }) => {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<Error | undefined>();
@@ -558,7 +563,30 @@ const useProfileData = (id: string) => {
 };
 ```
 
-So we can think of `Friends` and `UserBrief` as presentional component that only accepts data and render DOM as result. This way we could develop these component separately (adding styles for different states, for example). These presentational components normally are easy to test and modify as we have separate the data fetching and rendering.
+And thus you can use the custom hook in `Profile` component:
+
+```tsx
+const Profile = ({ id }: { id: string }) => {
+  const { loading, error, user, friends } = useProfileData(id);
+
+  if (loading) {
+    return <div>Loading...</div>;
+  }
+
+  if (error) {
+    return <div>Something went wrong...</div>;
+  }
+
+  return (
+    <>
+      {user && <UserBrief user={user} />}
+      <Friends friends={friends} />
+    </>
+  );
+};
+```
+
+And then we can think of `Friends` and `UserBrief` as presentional component that only accepts data and render DOM as result. This way we could develop these component separately (adding styles for different states, for example). These presentational components normally are easy to test and modify as we have separate the data fetching and rendering.
 
 However, there are cases while you cannot parallel requests, for example, we will make a recommendation feeds list on the `Profile` page, and this recommendation needs users’ **interests**, the API is defined as `/users/recommendations/<interest>` for example. 
 
@@ -575,9 +603,7 @@ However, there are cases while you cannot parallel requests, for example, we wil
 }
 ```
 
-That means we can only send a request for fetching the recommendation articles **after** we have already have the response of the **user** API.
-
-We'll explore this matter further in the Declarative Data Fetching section. Meanwhile, let's enhance the `Friend` list component as an example to showcase the technique of code splitting and lazy loading.
+That means we can only send a request for fetching the recommendation articles **after** we have already have the response of the **user** API. We'll explore this matter further in the Declarative Data Fetching section. Meanwhile, let's enhance the `Friend` list component as an example to showcase the technique of code splitting and lazy loading.
 
 ## Introducing UserDetailCard comopnent
 
