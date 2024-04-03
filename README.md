@@ -17,7 +17,7 @@ I would like to discuss the traditional code splitting techniques, as well as pa
 
 I believe discussing these concepts through a straightforward example is the best approach. I aim to start simply and then introduce more complexity in a manageable way. I also plan to keep code snippets, particularly for styling (I'm utilizing TailwindCSS for the UI, which can result in lengthy snippets in a React component), to a minimum. For those interested in the complete details, I've made them available [in this repository](https://github.com/abruzzi/react-network-advanced-client-side), with server-side rendering details [in another repository](https://github.com/abruzzi/react-network-advanced-next).
 
-It's important to note that the techniques we're covering are not exclusive to React or any specific frontend framework or library. I've chosen React for illustration purposes due to my extensive experience with it in recent years. However, principles like code splitting and server-side rendering are applicable across frameworks like Angular or Vue. The examples I'll share are common scenarios you might encounter in frontend development, regardless of the framework you use.
+It's important to note that the techniques we're covering are not exclusive to React or any specific frontend framework or library. I've chosen React for illustration purposes due to my extensive experience with it in recent years. However, principles like code splitting and server-side rendering are applicable across frameworks like Angular or Vue.js. The examples I'll share are common scenarios you might encounter in frontend development, regardless of the framework you use.
 
 Alright, let’s dive into the example we’re going to use throughout the article, a `Profile` page.
 
@@ -677,6 +677,7 @@ Traditionally, code splitting is the technique used to tackle this challenge. At
 It’s easy to achieve within React’s lazy and suspense API. So instead of static import, we use `React.lazy` to wrap the import statement, and wrap the `UserDetailCard` with a `Suspense`. When React encounters the suspense boundary, it shows a `fallback` first, and when the dynamic file is loaded, it tries to render it.
 
 ```jsx
+import React, { Suspense } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "@nextui-org/react";
 import { UserBrief } from "./user.tsx";
 
@@ -708,8 +709,9 @@ If we visualize the above code, it renders in the following sequence.
 
 Note that when the user hovers and we download the JavaScript bundle, there will be some extra time for the browser to parse the JavaScript. Once that part of the work is done, we can get the user details by calling `/users/<id>/details` API. Eventually, we can use that data to render the content of the popup `UserDetailCard`.
 
-<!-- maybe as an aside -->
-Again, this pattern is widely adopted in other frontend libraries as well. For example, you can use `defineAsyncComponent` in Vue to achieve the samiliar result - only load a component when you need it to render:
+### Lazy load in other frontend libraries
+
+Again, this pattern is widely adopted in other frontend libraries as well. For example, you can use `defineAsyncComponent` in Vue.js to achieve the samiliar result - only load a component when you need it to render:
 
 ```txt
 <template>
@@ -730,6 +732,8 @@ const UserDetailCard = defineAsyncComponent(() => import('./UserDetailCard.vue')
 ```
 
 The function `defineAsyncComponent` defines an async component which is lazy loaded only when it is rendered just like the `React.lazy`. You could even use the dynamic import operator in any JavaScript applications as it's now a standard language feature.
+
+### The dynamic import operator
 
 The following code snippet illustrates that when the `toggle` button is clicked, it asynchronously loads `calculator.js` from the server. Upon successful loading, it executes the `calculator.add` function to perform a calculation, displaying the result on the page.
 
@@ -828,7 +832,8 @@ You might also be aware that all of the techniques we discussed are based on one
 
 Like most typical React applications nowadays, the application we’re building so far are purely rendered on client side. However, such application has a significant drawback on SEO, as when the search engine robot crawls our application URL, it won’t be able to get the full content but a meaningless `<div id="root"></div>`. 
 
-<!-- maybe as an aside -->
+### A Brief Introduction of SSR
+
 While certain search engines (such as Google) have the capability to process JavaScript, depending entirely on client-side JavaScript for content rendering can lead to issues, including delays in indexing or capturing incomplete content.
 
 SSR was invented to solve this problem. Server-side rendering (SSR) is a technique where web page content is generated on the server and sent to the client as fully formed HTML, enabling faster initial page loads and improved SEO by making content immediately available to search engines.
@@ -905,7 +910,7 @@ When `Friends` is rendered inside a `<Suspense>` boundary, React knows to wait f
 
 Initially, the HTML for `FriendsSkeleton` is sent to the client, giving users an immediate visual cue that content is loading. As additional data becomes available, these updates are streamed to the browser, allowing for gradual rendering. This process results in a smoother and more efficient user experience. This is known as **Render-As-You-Fetch** approach, further details into this approach will be discussed in the Streaming Server-Side Rendering section.
 
-Within the ecosystems of other libraries such as Vue and Angular, there exist comparable solutions, notably Nuxt for Vue and Angular Universal for Angular. These frameworks offer built-in server-side rendering (SSR) capabilities, including data fetching, allowing the patterns discussed here to be similarly applied, albeit through their distinct approaches.
+Within the ecosystems of other libraries such as Vue.js and Angular, there exist comparable solutions, notably Nuxt for Vue.js and Angular Universal for Angular. These frameworks offer built-in server-side rendering (SSR) capabilities, including data fetching, allowing the patterns discussed here to be similarly applied, albeit through their distinct approaches.
 
 ## Pattern 4: Declarative Data Fetching
 
@@ -969,6 +974,21 @@ And declaratively when you use the `Friends`, you use an Error boundary and Susp
 ```
 
 The `ErrorBoundary` catches any rendering errors in its child components and displays the specified fallback UI, in this case, `<Error />`. Nested within it, `Suspense` manages the asynchronous loading of the `Friends` component, showing a `<FriendsSkeleton />` placeholder until the component's data dependencies are resolved. This setup ensures that the user interface remains responsive and informative during data fetching and in the event of any errors, improving the overall user experience by seamlessly integrating error handling and loading state management.
+
+It's worth noting that Vue.js is also exploring a similar experimental pattern, where you can employ declarative data fetching using:
+
+```text
+<Suspense>
+  <template #default>
+    <AsyncComponent />
+  </template>
+  <template #fallback>
+    Loading...
+  </template>
+</Suspense>
+```
+
+Upon the first render, `<Suspense>` attempts to render its default content behind the scenes. Should it encounter any asynchronous dependencies during this phase, it transitions into a pending state, where the fallback content is displayed instead. Once all the asynchronous dependencies are successfully loaded, `<Suspense>` moves to a resolved state, and the content initially intended for display (the default slot content) is rendered.
 
 ## Pattern 5: Streaming Server-Side Rendering
 
