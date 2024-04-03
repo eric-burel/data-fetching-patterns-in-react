@@ -23,7 +23,7 @@ Alright, let’s dive into the example we’re going to use throughout the artic
 
 ## Introducing the application
 
-Let’s say we’re building a single-page application; we’ll be working on the Profile screen of the application. To begin with, on `Profile` we’ll show the user’s brief (including name, avatar, and a short description), and then we also want to show their connections (similar to followers on Twitter or LinkedIn connections).
+Let’s say we’re building a single-page application, and we’ll be specifically working on the Profile screen. To begin with, on `Profile` we’ll show the user’s brief (including name, avatar, and a short description), and then we also want to show their connections (similar to followers on Twitter or LinkedIn connections). We'll need to fetch user and their connections data from remote service, and then assembling these data with UI on the screen.
 
 ![Profile screen](images/user-brief-and-friends.png)
 
@@ -42,41 +42,303 @@ The data are from two separate API calls, the user brief API `/users/<id>` retur
 }
 ```
 
-The friend API `/users/<id>/friends` endpoint returns a list of friends for a given user, each list item in the response is the same as the above user data. The reason we have two endpoints instead of returning a `friends` section of the user API is that there are cases where one could have too many friends (say 1,000), which will make it less flexible to paginate (as well as we want the response to be small) compared to the separate endpoints.
+And the friend API `/users/<id>/friends` endpoint returns a list of friends for a given user, each list item in the response is the same as the above user data. The reason we have two endpoints instead of returning a `friends` section of the user API is that there are cases where one could have too many friends (say 1,000), which will make it less flexible to paginate (as well as we want the response to be small) compared to the separate endpoints.
 
-## Implement the Profile component
+As this article leverages React to illustrate various patterns, I do not assume you possess comprehensive knowledge about React. Therefore, in the following section, I will briefly introduce some concepts we're going to utilize throughout this article. If you have prior experience with React—perhaps having built a data-fetching application with basic state management using the `useState` and `useEffect` hooks—you may choose to skip ahead to the next section. For those seeking a more thorough tutorial, the [new React documentation](https://react.dev/) is an excellent resource.
 
-Now let’s create the `Profile` component, make a request, and render the result. React's primary role is to manage the rednering of data into the DOM, not fetching data itself. However, the useEffect hook offers a pathway for incorporating non-rendering tasks like data fetching, executing after React has completed rendering. If that effect changed the data in some way, React schedules an re-render to reflect these changes.
+## A brief introduction of React concepts
 
-Within the `useEffect` hook, we initiate a network request to fetch data asynchronously. Once the data is received from the server, we utilize the `useState` API to update the component's internal state. This ensures that the fetched data is preserved across different render cycles. React, informed by the updated state, then proceeds to the next render cycle, incorporating the freshly fetched data into the component's output.
+### What is a React Component?
 
-```ts
-const Component = ({ id }) => {
-  const [data, setData] = useState();
+In React, components are the fundamental building blocks. To put it simply, a React component is a function that returns a piece of UI, which can be as straightforward as a fragment of HTML. Consider the creation of a component that renders a navigation bar:
 
-  useEffect(() => {
-    const fetchData = async () => {
-      const response = await fetch(`/api/users/${id}`);
-      const jsonData = await response.json();
-      setData(jsonData);
-    };
+```tsx
+import React from 'react';
 
-    fetchData();
-  }, [id]);
-
-  // the rendering logic
-  return <div>
-    <h2>{data?.name}</h2>
-  </div>
+function Navigation() {
+  return (
+    <nav>
+      <ol>
+        <li>Home</li>
+        <li>Blogs</li>
+        <li>Books</li>
+      </ol>
+    </nav>
+  );
 }
 ```
 
+At first glance, the mixture of JavaScript with HTML tags might seem strange (it's called JSX, a syntax extension to JavaScript). To make this code functional, a compiler is required to translate the JSX into valid JavaScript code. After being compiled by [Babel](https://babeljs.io/), the code would roughly translate to the following:
 
-In practical applications, it's essential to handle various states such as loading, error, and displaying fallbacks when data isn't immediately available. For instance, the following image illustrates different statuses within a User component.
+```js
+function Navigation() {
+  return React.createElement(
+    "nav",
+    null,
+    React.createElement(
+      "ol",
+      null,
+      React.createElement("li", null, "Home"),
+      React.createElement("li", null, "Blogs"),
+      React.createElement("li", null, "Books")
+    )
+  );
+}
+```
 
-![Different status of a component](images/status-of-profile-component.png)
+Note here the translated code has a function called `React.createElement`, which is a foundational function in React for creating elements. JSX written in React components is compiled down to `React.createElement` calls behind the scenes.
 
-Back to our `Profile` component example, our initial implementation could be something like the following de-facto way in a typical React codebases:
+The basic syntax of `React.createElement` is:
+
+```js
+React.createElement(type, [props], [...children])
+```
+
+- **type**: A string (e.g., 'div', 'span') indicating the type of DOM node to create, or a React component (class or functional) for more sophisticated structures.
+- **props**: An object containing properties passed to the element or component, including event handlers, styles, and attributes like `className` and `id`.
+- **children**: These optional arguments can be additional `React.createElement` calls, strings, numbers, or any mix thereof, representing the element's children.
+
+For instance, a simple element can be created with `React.createElement` as follows:
+
+```js
+React.createElement('div', { className: 'greeting' }, 'Hello, world!');
+```
+
+This is analogous to the JSX version:
+
+```jsx
+<div className="greeting">Hello, world!</div>
+```
+
+Beneath the surface, React invokes the native DOM API (e.g., `document.createElement("ol")`) to generate DOM elements as necessary. You can then assemble your custom components into a tree, similar to HTML code:
+
+```tsx
+import React from 'react';
+import Navigation from './Navigation.tsx';
+
+function App() {
+  return <Page />;
+}
+
+function Page() {
+  return <Navigation />;
+}
+```
+
+Ultimately, your application requires a root node to mount to, at which point React assumes control and manages subsequent renders and re-renders:
+
+```tsx
+import ReactDOM from "react-dom/client";
+import App from "./App.tsx";
+
+const root = ReactDOM.createRoot(document.getElementById('root'));
+root.render(<App />);
+```
+
+### Dynamic Content
+
+The initial example demonstrates a straightforward use case, but let's explore how we can create content dynamically. For instance, how can we generate a list of data dynamically? In React, as illustrated earlier, a component is fundamentally a function, enabling us to pass parameters to it.
+
+```tsx
+import React from 'react';
+
+function Navigation({ nav }) {
+  return (
+    <nav>
+      <ol>
+        {nav.map(item => <li key={item}>{item}</li>)}
+      </ol>
+    </nav>
+  );
+}
+```
+
+In this modified `Navigation` component, we anticipate the parameter to be an array of strings. We utilize the `map` function to iterate over each item, transforming them into `<li>` elements. The curly braces `{}` signify that the enclosed JavaScript expression should be evaluated and rendered. For those curious about the compiled version of this dynamic content handling:
+
+```tsx
+function Navigation(props) {
+  var nav = props.nav;
+
+  return React.createElement(
+    "nav",
+    null,
+    React.createElement(
+      "ol",
+      null,
+      nav.map(function(item) {
+        return React.createElement("li", { key: item }, item);
+      })
+    )
+  );
+}
+```
+
+Instead of invoking `Navigation` as a regular function, employing JSX syntax renders the component invocation more akin to writing markup, enhancing readability:
+
+```tsx
+// Instead of this
+Navigation(["Home", "Blogs", "Books"])
+
+// We do this
+<Navigation nav={["Home", "Blogs", "Books"]} />
+```
+
+In the context where `Navigation` is called, we can conditionally pass different data sets to it. For instance, logged-in users might see additional items like "My Courses" and "Profile". This conditional logic is seamlessly integrated by assigning variable "navItems" with different lists based on the user's login status.
+
+```tsx
+import React from 'react';
+import Navigation from './Navigation.tsx';
+import Content from './Content.tsx';
+
+function Page() {
+  let isLoggedIn = false; // This would typically be determined by some logic
+
+  const navItems = isLoggedIn ? ["Home", "Blogs", "My Courses", "Profile"] : ["Home", "Blogs", "Books"];
+
+  return (
+    <div>
+      <Navigation nav={navItems} />
+      <Content /> {/* Additional components */}
+    </div>
+  );
+}
+```
+
+As illustrated, components in React can be used similarly to regular JavaScript functions. The distinction lies in using JSX syntax, making the code more familiar and readable to those with HTML knowledge, which aligns well with the skill set of most frontend developers.
+
+### Managing Internal State Between Renders
+
+Building user interfaces (UI) often transcends the generation of static HTML. Components frequently need to "remember" certain states and respond to user interactions dynamically. For instance, when a user clicks an "Add" button in a Product component, it's necessary to update the ShoppingCart component to reflect both the total price and the updated item list.
+
+In the previous code snippet, attempting to set the `isLoggedIn` variable to `true` within an event handler does not achieve the desired effect:
+
+```tsx
+function Page() {
+  let isLoggedIn = false;
+
+  const clickHandler = () => {
+    isLoggedIn = true; // this doesn't work
+  };
+
+  const navItems = isLoggedIn ? ["Home", "Blogs", "My Courses", "Profile"] : ["Home", "Blogs", "Books"];
+
+  return (
+    <div>
+      <Navigation nav={navItems} />
+      <button onClick={clickHandler}>Logout</button>
+      <Content />
+    </div>
+  );
+}
+```
+
+This approach falls short because local variables inside a function component do not persist between renders. When React re-renders this component, it does so from scratch, disregarding any changes made to local variables since these do not trigger re-renders. React remains unaware of the need to update the component to reflect new data.
+
+This limitation underscores the necessity for React's `state`. Specifically, functional components leverage the `useState` hook to remember states across renders. Revisiting the `Page` example, we can effectively remember the `isLoggedIn` state as follows:
+
+```tsx
+import React, { useState } from 'react';
+import Navigation from './Navigation.tsx';
+import Content from './Content.tsx';
+
+function Page() {
+  const [isLoggedIn, setLoggedIn] = useState(false);
+
+  const clickHandler = () => {
+    setLoggedIn(!isLoggedIn);
+  };
+
+  const navItems = isLoggedIn ? ["Home", "Blogs", "My Courses", "Profile"] : ["Home", "Blogs", "Books"];
+
+  return (
+    <div>
+      <Navigation nav={navItems} />
+      <button onClick={clickHandler}>{isLoggedIn ? "Login" : "Logout"}</button>
+      <Content />
+    </div>
+  );
+}
+```
+
+The `useState` hook is a cornerstone of React's Hooks system, introduced to enable functional components to manage internal state. It introduces state to functional components, encapsulated by the following syntax:
+
+```js
+const [state, setState] = useState(initialState);
+```
+
+- **`initialState`**: This argument is the initial value of the state variable. It can be a simple value like a number, string, boolean, or a more complex object or array. The `initialState` is only used during the first render to initialize the state.
+
+- **Return Value**: `useState` returns an array with two elements. The first element is the current state value, and the second element is a function that allows updating this value. By using array destructuring, we assign names to these returned items, typically `state` and `setState`, though you can choose any valid variable names.
+
+    - **`state`**: Represents the current value of the state. It's the value that will be used in the component's UI and logic.
+    
+    - **`setState`**: A function to update the state. This function accepts a new state value or a function that produces a new state based on the previous state. When called, it schedules an update to the component's state and triggers a re-render to reflect the changes.
+
+React treats state as a snapshot; updating it doesn't alter the existing state variable but instead triggers a re-render. During this re-render, React acknowledges the updated state, ensuring the `Navigation` component receives the correct data, thereby reflecting the updated navigation list to the user. This snapshot-like behavior of state facilitates the dynamic and responsive nature of React components, enabling them to react intuitively to user interactions and other changes.
+
+### Managing Side Effects
+
+Before diving deeper into our discussion, it's crucial to address the concept of side effects. Side effects are operations that interact with the outside world from the React ecosystem. Common examples include fetching data from a remote server or dynamically manipulating the DOM, such as changing the page title.
+
+React is primarily concerned with rendering data to the DOM and does not inherently handle data fetching or direct DOM manipulation. To facilitate these side effects, React provides the `useEffect` hook. This hook allows the execution of side effects after React has completed its rendering process. If these side effects result in data changes, React schedules a re-render to reflect these updates.
+
+The `useEffect` Hook accepts two arguments:
+
+- A function containing the side effect logic.
+- An optional dependency array specifying when the side effect should be re-invoked.
+
+```tsx
+useEffect(() => {
+  // Place your side effect like data fetching logic here
+}, [dependencies]);
+```
+
+Omitting the second argument causes the side effect to run after every render. Providing an empty array `[]` signifies that your effect doesn’t depend on any values from props or state, thus not needing to re-run. Including specific values in the array means the side effect only re-executes if those values change.
+
+When dealing with asynchronous data fetching, the workflow within `useEffect` entails initiating a network request. Once the data is retrieved, it is captured via the `useState` hook, updating the component's internal state and preserving the fetched data across renders. React, recognizing the state update, undertakes another render cycle to incorporate the new data.
+
+Here's a practical example about data fetching and state management:
+
+```tsx
+import { useEffect, useState } from "react";
+
+type User = {
+  id: string;
+  name: string;
+};
+
+const UserSection = ({ id }) => {
+  const [user, setUser] = useState<User | undefined>();
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      const response = await fetch(`/api/users/${id}`);
+      const jsonData = await response.json();
+      setUser(jsonData);
+    };
+
+    fetchUser();
+  }, [id]);
+
+  return <div>
+    <h2>{user?.name}</h2>
+  </div>;
+};
+```
+
+In the code snippet above, within `useEffect`, an asynchronous function `fetchUser` is defined and then immediately invoked. This pattern is necessary because `useEffect` does not directly support async functions as its callback. The async function is defined to use `await` for the fetch operation, ensuring that the code execution waits for the response and then processes the JSON data. Once the data is available, it updates the component's state via `setUser`.
+
+The dependency array `[id]` at the end of the `useEffect` call ensures that the effect runs again only if `id` changes, which prevents unnecessary network requests on every render and fetches new user data when the `id` prop updates.
+
+This approach to handling asynchronous data fetching within `useEffect` is a standard practice in React development, offering a structured and efficient way to integrate async operations into the React component lifecycle.
+
+In addition, in practical applications, managing different states such as loading, error, and data presentation is essential too (we'll see it how it works in the following section). For example, consider implementing status indicators within a User component to reflect loading, error, or data states, enhancing the user experience by providing feedback during data fetching operations.
+
+![Different statuses of a component](images/status-of-profile-component.png)
+
+## Implement the Profile component
+
+Now let’s create the `Profile` component, make a request, and render the result. Our initial implementation could be something like the following de-facto way in a typical React codebases:
 
 ```jsx
 const Profile = ({ id }: { id: string }) => {
