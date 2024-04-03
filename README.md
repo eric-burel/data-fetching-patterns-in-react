@@ -287,7 +287,7 @@ The `useEffect` Hook accepts two arguments:
 - A function containing the side effect logic.
 - An optional dependency array specifying when the side effect should be re-invoked.
 
-```tsx
+```jsx
 useEffect(() => {
   // Place your side effect like data fetching logic here
 }, [dependencies]);
@@ -336,9 +336,11 @@ In addition, in practical applications, managing different states such as loadin
 
 ![Different statuses of a component](images/status-of-profile-component.png)
 
+This overview offers just a quick glimpse into the concepts utilized throughout this article. For a deeper dive into additional concepts and patterns, I recommend exploring the [new React documentation](https://react.dev/) or consulting other online resources. With this foundation, you should now be equipped to join me as we delve into the data fetching patterns discussed herein.
+
 ## Implement the Profile component
 
-Now let’s create the `Profile` component, make a request, and render the result. Our initial implementation could be something like the following de-facto way in a typical React codebases:
+Let’s create the `Profile` component to make a request and render the result. Our initial implementation could be something like the following de-facto way in a typical React codebases:
 
 ```jsx
 const Profile = ({ id }: { id: string }) => {
@@ -450,7 +452,7 @@ const Friends = ({ id }: { id: string }) => {
 };
 ```
 
-And then in the Profile component, we can use Friends as a regular component:
+And then in the Profile component, we can use Friends as a regular component, and pass in `id` as a prop:
 
 ```jsx
 const Profile = ({ id }: { id: string }) => {
