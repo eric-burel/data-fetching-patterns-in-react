@@ -431,7 +431,49 @@ In UI components, managing states such as "isSelected" or "searchResults" is com
 
 Within this distinct unit, we can initiate data fetching and subsequently return states that reflect the stages of the request: loading, error, and the actual data. This allows the UI component consuming these states to make informed decisions on what to render based on their current values.
 
-For instance, we could distill this approach into a custom Hook in a React application for a Profile component:
+Consider a function, `getAsyncStates`, which takes a URL as its parameter and returns an object containing information essential for managing asynchronous operations. This setup allows us to appropriately respond to different states of a network request, whether it's in progress, successfully resolved, or has encountered an error.
+
+```ts
+const { loading, error, data } = getAsyncStates(url);
+
+if (loading) {
+  // Display a loading spinner
+}
+
+if (error) {
+  // Display an error message
+}
+
+// Proceed to render using the data
+```
+
+The assumption here is that `getAsyncStates` initiates the network request automatically upon being called. However, this might not always align with the caller's needs. To offer more control, we also expose a `fetch` function within the returned object, allowing the initiation of the request at a more appropriate time, according to the caller's discretion. Additionally, a `refetch` function could be provided to enable the caller to re-initiate the request as needed, such as after an error or when updated data is required. The `fetch` and `refetch` functions can be identical in implementation, or `refetch` might include logic to check for cached results and only re-fetch data if necessary.
+
+```tsx
+const { loading, error, data, fetch, refetch } = getAsyncStates(url);
+
+const onInit = () => {
+  fetch();
+};
+
+const onRefreshClicked = () => {
+  refetch();
+};
+
+if (loading) {
+  // Display a loading spinner
+}
+
+if (error) {
+  // Display an error message
+}
+
+// Proceed to render using the data
+```
+
+This pattern provides a versatile approach to handling asynchronous requests, giving developers the flexibility to trigger data fetching explicitly and manage the UI's response to loading, error, and success states effectively. By decoupling the fetching logic from its initiation, applications can adapt more dynamically to user interactions and other runtime conditions, enhancing the user experience and application reliability.
+
+The pattern can be implemented in different frontend libraries. For instance, we could distill this approach into a custom Hook in a React application for the Profile component:
 
 ```tsx
 const useUsers = (id: string) => {
@@ -463,7 +505,7 @@ const useUsers = (id: string) => {
 };
 ```
 
-Please note that in the custom Hook, we don't have any JSX code - meaning it's totally UI free but sharable stateful logic. Within the Profile component, leveraging the `useUsers` Hook simplifies its logic:
+Please note that in the custom Hook, we don't have any JSX code - meaning it's totally UI free but sharable stateful logic. And the `useUsers` launch data automatically when called. Within the Profile component, leveraging the `useUsers` Hook simplifies its logic:
 
 ```tsx
 const Profile = ({ id }: { id: string }) => {
@@ -485,7 +527,7 @@ const Profile = ({ id }: { id: string }) => {
 };
 ```
 
-The advantage of this division is the ability to reuse these stateful logics across different components. For instance, another component needing the same data (a user API call with a user ID) can simply import the `useUsers` Hook and utilize its states. Different UI components might choose to interact with these states in various ways, perhaps using alternative loading indicators or error messages, yet the fundamental logic of fetching data remains consistent and shared.
+The advantage of this division is the ability to reuse these stateful logics across different components. For instance, another component needing the same data (a user API call with a user ID) can simply import the `useUsers` Hook and utilize its states. Different UI components might choose to interact with these states in various ways, perhaps using alternative loading indicators (a smaller spinner that fits to the calling component) or error messages, yet the fundamental logic of fetching data remains consistent and shared.
 
 ## Implement the Friends list
 
