@@ -381,7 +381,7 @@ const Profile = ({ id }: { id: string }) => {
 };
 ```
 
-For the `Profile` component, we initiate states for loading, errors, and user data with `useState`. Using `useEffect`, we fetch user data based on `id`, toggling loading status and handling errors accordingly. Upon successful data retrieval, we update the user state, else display a loading indicator. (While it's possible to abstract fetchUser into a custom hook for cleaner code and reusability, it's demonstrated within the component for a comprehensive overview of its structure.)
+For the `Profile` component, we initiate states for loading, errors, and user data with `useState`. Using `useEffect`, we fetch user data based on `id`, toggling loading status and handling errors accordingly. Upon successful data retrieval, we update the user state, else display a loading indicator. 
 
 The `get` function, as demonstrated below, simplifies fetching data from a specific endpoint by appending the endpoint to a predefined base URL. It checks the response's success status and either returns the parsed JSON data or throws an error for unsuccessful requests, streamlining error handling and data retrieval in our application. Note it's pure TypeScript code and can be used in other non-React parts of the application.
 
@@ -411,27 +411,28 @@ Now in the browser, we can see a "loading..." when the application starts and th
 
 ![User brief component](images/user-brief.png)
 
-This code structure is widely used across React codebases, especially those requiring data fetching from an API endpoint. In applications of regular size, it's common to find numerous instances of such data-fetching logic dispersed throughout various components. As your application expands, organizing these logic segments efficiently becomes a significant challenge.
+This code structure is widely used across React codebases, especially those requiring data fetching from an API endpoint. In applications of regular size, it's common to find numerous instances of such data-fetching logic dispersed throughout various components. 
 
-## Implement the Friends list
+## Pattern 0: Separate Data Fetching Logic
 
-Now let’s have a look at the second section of the Profile - the friend list. We can create a separate component `Friends` and fetch data in it; the logic is pretty similar to what we see above in the `Profile` component.
+In UI components, managing states such as "isSelected" or "searchResults" is commonplace. However, introducing asynchronous request-related states—namely loading, error, and data—into the mix can clutter the component. These states often appear together and managing them alongside other states can make the component harder to read and maintain. It's practical, then, to encapsulate these related states and separate this logic into its own space.
 
-And then in the Profile component, we can use Friends as a regular component:
+Within this distinct unit, we can initiate data fetching and subsequently return states that reflect the stages of the request: loading, error, and the actual data. This allows the UI component consuming these states to make informed decisions on what to render based on their current values.
+
+For instance, we could distill this approach into a custom Hook in a React application for a Profile component:
 
 ```tsx
-const Friends = ({ id }: { id: string }) => {
+const useUsers = (id: string) => {
   const [loading, setLoading] = useState<boolean>(false);
-  const [error, setError] = useState<Error | undefined>(undefined);
-
-  const [users, setUsers] = useState<User[]>([]);
+  const [error, setError] = useState<Error | undefined>();
+  const [user, setUser] = useState<User | undefined>();
 
   useEffect(() => {
-    const fetchFriends = async () => {
+    const fetchUser = async () => {
       try {
         setLoading(true);
-        const data = await get<User[]>(`/users/${id}/friends`);
-        setUsers(data);
+        const data = await get<User>(`/users/${id}`);
+        setUser(data);
       } catch (e) {
         setError(e as Error);
       } finally {
@@ -439,8 +440,48 @@ const Friends = ({ id }: { id: string }) => {
       }
     };
 
-    fetchFriends();
+    fetchUser();
   }, [id]);
+
+  return {
+    loading,
+    error,
+    user,
+  };
+};
+```
+
+Please note that in the custom Hook, we don't have any JSX code - meaning it's totally UI free but sharable stateful logic. Within the Profile component, leveraging the `useUsers` Hook simplifies its logic:
+
+```tsx
+const Profile = ({ id }: { id: string }) => {
+  const { loading, error, user } = useUsers(id);
+
+  if (loading || !user) {
+    return <div>Loading...</div>;
+  }
+
+  if (error) {
+    return <div>Something went wrong...</div>;
+  }
+
+  return (
+    <>
+      {user && <UserBrief user={user} />}
+    </>
+  );
+};
+```
+
+The advantage of this division is the ability to reuse these stateful logics across different components. For instance, another component needing the same data (a user API call with a user ID) can simply import the `useUsers` Hook and utilize its states. Different UI components might choose to interact with these states in various ways, perhaps using alternative loading indicators or error messages, yet the fundamental logic of fetching data remains consistent and shared.
+
+## Implement the Friends list
+
+Now let’s have a look at the second section of the Profile - the friend list. We can create a separate component `Friends` and fetch data in it (by using a useFriends custom hook like the useUsers defined above), and the logic is pretty similar to what we see above in the `Profile` component.
+
+```tsx
+const Friends = ({ id }: { id: string }) => {
+  const { loading, error, users } = useFriends(id);
   
   // loading & error handling...
 
@@ -484,7 +525,7 @@ The `Friends` component won't initiate data fetching until the user state is set
 
 This waiting period is somewhat inefficient, considering that while React's rendering process only takes a few milliseconds, data fetching can take significantly longer, often seconds. As a result, the `Friends` component spends most of its time idle, waiting for data. This scenario leads to a common challenge known as the Request Waterfall, a frequent occurrence in frontend applications that involve multiple data fetching operations.
 
-## Pattern 1: Request Waterfall and parallel requests
+## Pattern 1: Parallel requests
 
 Imagine when we build a larger application that a component that requires data can be deeply nested in the component tree, to make the matter worse these components are developed by different teams, it’s hard to see whom we’re blocking.
 
