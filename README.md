@@ -183,81 +183,93 @@ Navigation(["Home", "Blogs", "Books"])
 <Navigation nav={["Home", "Blogs", "Books"]} />
 ```
 
-In the context where `Navigation` is called, we can conditionally pass different data sets to it. For instance, logged-in users might see additional items like "My Courses" and "Profile". This conditional logic is seamlessly integrated by assigning variable "navItems" with different lists based on the user's login status.
+Components in React can receive diverse data, known as props, to modify their behavior, much like passing arguments into a function (the distinction lies in using JSX syntax, making the code more familiar and readable to those with HTML knowledge, which aligns well with the skill set of most frontend developers).
 
 ```tsx
 import React from 'react';
-import Navigation from './Navigation.tsx';
-import Content from './Content.tsx';
+import Checkbox from './Checkbox';
+import BookList from './BookList';
 
-function Page() {
-  let isLoggedIn = false; // This would typically be determined by some logic
+function App() {
+  let showNewOnly = false; // This flag's value is typically set based on specific logic.
 
-  const navItems = isLoggedIn ? ["Home", "Blogs", "My Courses", "Profile"] : ["Home", "Blogs", "Books"];
+  const filteredBooks = showNewOnly
+    ? booksData.filter(book => book.isNewPublished)
+    : booksData;
 
   return (
     <div>
-      <Navigation nav={navItems} />
-      <Content /> {/* Additional components */}
+      <Checkbox checked={showNewOnly}>
+        Show New Published Books Only
+      </Checkbox>
+      <BookList books={filteredBooks} />
     </div>
   );
 }
 ```
 
-As illustrated, components in React can be used similarly to regular JavaScript functions. The distinction lies in using JSX syntax, making the code more familiar and readable to those with HTML knowledge, which aligns well with the skill set of most frontend developers.
+In this illustrative code snippet (non-functional but intended to demonstrate the concept), we manipulate the `BookList` component's displayed content by passing it an array of books. Depending on the `showNewOnly` flag, this array is either all available books or only those that are newly published, showcasing how props can be used to dynamically adjust component output.
 
 ### Managing Internal State Between Renders
 
 Building user interfaces (UI) often transcends the generation of static HTML. Components frequently need to "remember" certain states and respond to user interactions dynamically. For instance, when a user clicks an "Add" button in a Product component, it's necessary to update the ShoppingCart component to reflect both the total price and the updated item list.
 
-In the previous code snippet, attempting to set the `isLoggedIn` variable to `true` within an event handler does not achieve the desired effect:
+In the previous code snippet, attempting to set the `showNewOnly` variable to `true` within an event handler does not achieve the desired effect:
 
 ```tsx
-function Page() {
-  let isLoggedIn = false;
+function App () {
+  let showNewOnly = false;
 
-  const clickHandler = () => {
-    isLoggedIn = true; // this doesn't work
+  const handleCheckboxChange = () => {
+    showNewOnly = true; // this doesn't work
   };
 
-  const navItems = isLoggedIn ? ["Home", "Blogs", "My Courses", "Profile"] : ["Home", "Blogs", "Books"];
+  const filteredBooks = showNewOnly
+    ? booksData.filter(book => book.isNewPublished)
+    : booksData;
 
   return (
     <div>
-      <Navigation nav={navItems} />
-      <button onClick={clickHandler}>Logout</button>
-      <Content />
+      <Checkbox checked={showNewOnly} onChange={handleCheckboxChange}>
+        Show New Published Books Only
+      </Checkbox>
+
+      <BookList books={filteredBooks}/>
     </div>
   );
-}
+};
 ```
 
 This approach falls short because local variables inside a function component do not persist between renders. When React re-renders this component, it does so from scratch, disregarding any changes made to local variables since these do not trigger re-renders. React remains unaware of the need to update the component to reflect new data.
 
-This limitation underscores the necessity for React's `state`. Specifically, functional components leverage the `useState` hook to remember states across renders. Revisiting the `Page` example, we can effectively remember the `isLoggedIn` state as follows:
+This limitation underscores the necessity for React's `state`. Specifically, functional components leverage the `useState` hook to remember states across renders. Revisiting the `App` example, we can effectively remember the `showNewOnly` state as follows:
 
 ```tsx
 import React, { useState } from 'react';
-import Navigation from './Navigation.tsx';
-import Content from './Content.tsx';
+import Checkbox from './Checkbox';
+import BookList from './BookList';
 
-function Page() {
-  const [isLoggedIn, setLoggedIn] = useState(false);
+function App () {
+  const [showNewOnly, setShowNewOnly] = useState(false);
 
-  const clickHandler = () => {
-    setLoggedIn(!isLoggedIn);
+  const handleCheckboxChange = () => {
+    setShowNewOnly(!showNewOnly);
   };
 
-  const navItems = isLoggedIn ? ["Home", "Blogs", "My Courses", "Profile"] : ["Home", "Blogs", "Books"];
+  const filteredBooks = showNewOnly
+    ? booksData.filter(book => book.isNewPublished)
+    : booksData;
 
   return (
     <div>
-      <Navigation nav={navItems} />
-      <button onClick={clickHandler}>{isLoggedIn ? "Login" : "Logout"}</button>
-      <Content />
+      <Checkbox checked={showNewOnly} onChange={handleCheckboxChange}>
+        Show New Published Books Only
+      </Checkbox>
+
+      <BookList books={filteredBooks}/>
     </div>
   );
-}
+};
 ```
 
 The `useState` hook is a cornerstone of React's Hooks system, introduced to enable functional components to manage internal state. It introduces state to functional components, encapsulated by the following syntax:
@@ -274,7 +286,7 @@ const [state, setState] = useState(initialState);
     
     - **`setState`**: A function to update the state. This function accepts a new state value or a function that produces a new state based on the previous state. When called, it schedules an update to the component's state and triggers a re-render to reflect the changes.
 
-React treats state as a snapshot; updating it doesn't alter the existing state variable but instead triggers a re-render. During this re-render, React acknowledges the updated state, ensuring the `Navigation` component receives the correct data, thereby reflecting the updated navigation list to the user. This snapshot-like behavior of state facilitates the dynamic and responsive nature of React components, enabling them to react intuitively to user interactions and other changes.
+React treats state as a snapshot; updating it doesn't alter the existing state variable but instead triggers a re-render. During this re-render, React acknowledges the updated state, ensuring the `BookList` component receives the correct data, thereby reflecting the updated book list to the user. This snapshot-like behavior of state facilitates the dynamic and responsive nature of React components, enabling them to react intuitively to user interactions and other changes.
 
 ### Managing Side Effects
 
