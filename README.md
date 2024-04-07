@@ -629,7 +629,7 @@ The `Friends` component won't initiate data fetching until the user state is set
 
 This waiting period is somewhat inefficient, considering that while React's rendering process only takes a few milliseconds, data fetching can take significantly longer, often seconds. As a result, the `Friends` component spends most of its time idle, waiting for data. This scenario leads to a common challenge known as the Request Waterfall, a frequent occurrence in frontend applications that involve multiple data fetching operations.
 
-## Pattern: Parallel data fetching
+## Pattern: Parallel Data Fetching
 
 Fetch data in parallel when application initialising.
 
@@ -1139,13 +1139,11 @@ It's important to understand that Static Site Generation (SSG) is seldom employe
 
 ## Pattern: Server Component
 
-Simply put, Server Components are components that are rendered on the server side, enabling operations like data fetching and content generation without sending the component's code or logic to the client, thus reducing the amount of JavaScript needed for the page and improving load times.
+Server Components are components that are rendered on the server side, enabling operations like data fetching and content generation without sending the component's code or logic to the client, thus reducing the amount of JavaScript needed for the page and improving load times.
 
 Traditional Server-Side Rendering (SSR) does not inherently support client-side data fetching mechanisms (like `useEffect` in React applications), which only operates in a browser environment. This limitation necessitates a system that enables data to be fetched on the server side. 
 
-Additionally, an ideal setup would allow for the immediate sending of smaller, non-data-dependent chunks to the client, providing early content while deferring more complex, data-reliant components. For these components, a preliminary fallback could be displayed until the necessary data is retrieved and subsequently used to progressively enrich the client-side rendering with more detailed content as it becomes available.
-
-React Server Components address this challenge by enhancing asynchronous programming techniques throughout React applications. Similar mechanisms for advanced Server-Side Rendering exist in other libraries as well. However, for the purpose of our discussion on the `Profile` example, we'll continue to focus on utilizing React Server Components.
+Server Components address this challenge by enhancing asynchronous programming techniques throughout applications. Similar mechanisms for advanced Server-Side Rendering exist in other libraries as well. However, for the purpose of our discussion on the `Profile` example, we'll continue to focus on utilizing React Server Components.
 
 ### Introducing React Server Component
 
@@ -1176,25 +1174,17 @@ async function Friends({ id }: { id: string }) {
 
 This Server Component above `Friends` showcases direct server-side data fetching with an `async` function to retrieve a user's friends. Unlike traditional client components that initiate data fetching effects (`useEffect`) and manage loading states within the browser, server components fetch data during **server-side rendering**. The `getFriends` call executes on the server, with the resulting friends list rendered into HTML before reaching the client. 
 
-Server Components leverage Suspense API to wrap the data-fetching component, and let the component itself free from the state (loading, error handling states) managment as we mentioned in the Declarative Data Fetching section.
+Within the ecosystems of other libraries such as Vue.js, there exist comparable solutions, notably Nuxt for Vue.js and Next.js for React. These frameworks offer built-in server-side rendering (SSR) capabilities, including data fetching, allowing the patterns discussed here to be similarly applied, albeit through their distinct approaches.
 
-```tsx
-<Suspense fallback={<FriendsSkeleton />}>
-  <Friends id={id} />
-</Suspense>
-```
-
-When `Friends` is rendered inside a `<Suspense>` boundary, React knows to wait for the `Friends` component's asynchronous data fetching to complete before rendering it. During this wait time, React displays the `<Suspense>` component's `fallback` content, in this case, `<FriendsSkeleton />`, providing a smooth user experience by showing a placeholder or loading indicator. 
-
-Initially, the HTML for `FriendsSkeleton` is sent to the client, giving users an immediate visual cue that content is loading. As additional data becomes available, these updates are streamed to the browser, allowing for gradual rendering. This process results in a smoother and more efficient user experience. This is known as **Render-As-You-Fetch** approach, further details into this approach will be discussed in the Streaming Server-Side Rendering section.
-
-Within the ecosystems of other libraries such as Vue.js and Angular, there exist comparable solutions, notably Nuxt for Vue.js and Angular Universal for Angular. These frameworks offer built-in server-side rendering (SSR) capabilities, including data fetching, allowing the patterns discussed here to be similarly applied, albeit through their distinct approaches.
+Please be aware that in both Vue.js and React, Server Components are not yet deemed ready for production use, even though libraries and frameworks are actively evolving and embracing this emerging pattern.
 
 ## Pattern: Streaming Server-Side Rendering
 
+Streaming Server-Side Rendering (SSR) is an advanced technique that allows servers to send partial HTML responses to the browser as page components are being rendered, rather than waiting for the entire page to render server-side before sending it. This method significantly improves the time to first byte (TTFB) and the overall perceived loading speed of web applications, offering users quicker access to content.
+
 From React 18 onwards, several streaming rendering APIs have been introduced. Similar to how we handle I/O operations, we don't need to load everything into memory at once. Instead, we process the data in smaller chunks and in a streaming manner. With streaming, we can immediately render what's available to the user without waiting for all content to be ready.
 
-Additionally, the new Suspense boundary makes server-side rendering (SSR) more powerful than before. For example, let's define a React Server Component as follows:
+Additionally, the new Suspense boundary makes server-side rendering (SSR) more powerful than before. For example, let's review the Profile component with React Server Component:
 
 ```jsx
 export async function Profile({ id }: { id: string }) {
@@ -1222,7 +1212,7 @@ With streaming SSR (Server-Side Rendering), the `Profile` component leverages Re
 
 We could break it down into a few steps:
 
-Initially, SSR might return the following HTML structure:
+Initially, SSR might return the following HTML structure. Because the data isn't ready, so the fallbacks defined in suspense boundaries are used:
 
 ```html
 <div>
@@ -1238,7 +1228,7 @@ Initially, SSR might return the following HTML structure:
 </div>
 ```
 
-And then, as the user data becomes available:
+And then, as the user data becomes available first, only the HTML content of the UserBiref is returned to client side, and the Loading user is replaced:
 
 ```html
 <div>
@@ -1254,13 +1244,13 @@ And then, as the user data becomes available:
 </div>
 ```
 
-From the end user's perspective, the application not only appears to be working, but it actually is interactive—you can engage with the loaded parts as soon as they're ready, while the rest of the content continues to load.
+From the end user's perspective, the application not only appears to be working, but it actually is interactive. You can engage with the loaded parts as soon as they're ready, while the rest of the content continues to load.
 
 ![Streaming Server-Side Rendering](images/timeline-1-9-streaming-ssr-trans.png)
 
 ### Nesting Suspense overview
 
-I have mentioned in the Parallel request section that not all the requests can be paralleled, for instance, we need to fetch user data first:
+Continue on the previous example, let's have a look at how nesting suspense works with Streaming SSR. As I have mentioned in the Parallel Data Fetching section that not all the requests can be paralleled. For instance, to get a feeds recommendataion, we need to fetch user data for the "interests" list first:
 
 ```jsx
 {
@@ -1314,12 +1304,13 @@ Moreover, certain strategies require additional setup compared to default, less 
 
 Data fetching is a nuanced aspect of development, yet mastering the appropriate techniques can vastly enhance our applications. As we conclude our journey through data fetching and content rendering strategies within the context of React, it's crucial to highlight our main insights:
 
-- **Parallel Requests**: Maximize efficiency by fetching data in parallel, reducing wait times and boosting the responsiveness of your application.
+- **Asynchronous State Handler**: Utilize custom hooks or composable APIs to abstract data fetching and state management away from your components. This pattern centralizes asynchronous logic, simplifying component design and enhancing reusability across your application.
+- **Declarative Data Fetching**: React's enhanced Suspense model supports a more declarative approach to fetching data asynchronously, streamlining your codebase.
+- **Parallel Data Fetching**: Maximize efficiency by fetching data in parallel, reducing wait times and boosting the responsiveness of your application.
 - **Lazy Loading with Suspense**: Employ lazy loading for non-essential components during the initial load, leveraging Suspense for graceful handling of loading states and code splitting, thereby ensuring your application remains performant.
 - **Data Prefetching**: By preemptively loading data based on predicted user actions, you can achieve a smooth and fast user experience.
-- **Declarative Data Fetching via Suspense**: React's enhanced Suspense model supports a more declarative approach to fetching data asynchronously, streamlining your codebase.
-- **Server-Side Rendering (SSR)**: Utilizing SSR, especially with React Server Components and Suspense, can significantly improve your app's speed and SEO, swiftly delivering content to users.
 - **Static Site Generation (SSG)**: SSG proves invaluable for static content, working alongside dynamic rendering to speed up load times and optimize resource use.
-- **Streaming**: Implementing streaming can incrementally enhance the user experience by serving content as soon as it's ready. Its practical application may vary based on backend solutions like Next.js.
+- **Server Component**: This pattern involves rendering components directly on the server, allowing for rich interactions without sending the component code to the client. It reduces the amount of JavaScript required on the client-side, speeding up load times and improving overall performance by executing data fetching, templating, and rendering on the server.
+- **Streaming Server-Side Rendering (SSR)**: Implementing streaming can incrementally enhance the user experience by serving content as soon as it's ready. Its practical application may vary based on backend solutions like Next.js.
 
 While these insights were framed within the React ecosystem, it's essential to recognize that these patterns are not confined to React alone. They are broadly applicable and beneficial strategies that can—and should—be adapted for use with other libraries and frameworks. By thoughtfully implementing these approaches, developers can create applications that are not just efficient and scalable, but also offer a superior user experience through effective data fetching and content rendering practices.
