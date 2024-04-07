@@ -425,7 +425,9 @@ Now in the browser, we can see a "loading..." when the application starts and th
 
 This code structure is widely used across React codebases, especially those requiring data fetching from an API endpoint. In applications of regular size, it's common to find numerous instances of such data-fetching logic dispersed throughout various components. 
 
-## Pattern 0: Separate Data Fetching Logic
+## Pattern 0: Asynchronous State Handler
+
+Reusable Logic for Data Fetching and State Management.
 
 In UI components, managing states such as "isSelected" or "searchResults" is commonplace. However, introducing asynchronous request-related states—namely loading, error, and data—into the mix can clutter the component. These states often appear together and managing them alongside other states can make the component harder to read and maintain. It's practical, then, to encapsulate these related states and separate this logic into its own space.
 
@@ -476,7 +478,9 @@ This pattern provides a versatile approach to handling asynchronous requests, gi
 The pattern can be implemented in different frontend libraries. For instance, we could distill this approach into a custom Hook in a React application for the Profile component:
 
 ```tsx
-const useUsers = (id: string) => {
+import { useEffect, useState } from "react";
+
+const useUser = (id: string) => {
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<Error | undefined>();
   const [user, setUser] = useState<User | undefined>();
@@ -505,11 +509,14 @@ const useUsers = (id: string) => {
 };
 ```
 
-Please note that in the custom Hook, we don't have any JSX code - meaning it's totally UI free but sharable stateful logic. And the `useUsers` launch data automatically when called. Within the Profile component, leveraging the `useUsers` Hook simplifies its logic:
+Please note that in the custom Hook, we don't have any JSX code - meaning it's totally UI free but sharable stateful logic. And the `useUser` launch data automatically when called. Within the Profile component, leveraging the `useUser` Hook simplifies its logic:
 
 ```tsx
+import { useUser } from './useUser.ts';
+import UserBrief from './UserBrief.tsx';
+
 const Profile = ({ id }: { id: string }) => {
-  const { loading, error, user } = useUsers(id);
+  const { loading, error, user } = useUser(id);
 
   if (loading || !user) {
     return <div>Loading...</div>;
@@ -527,11 +534,54 @@ const Profile = ({ id }: { id: string }) => {
 };
 ```
 
-The advantage of this division is the ability to reuse these stateful logics across different components. For instance, another component needing the same data (a user API call with a user ID) can simply import the `useUsers` Hook and utilize its states. Different UI components might choose to interact with these states in various ways, perhaps using alternative loading indicators (a smaller spinner that fits to the calling component) or error messages, yet the fundamental logic of fetching data remains consistent and shared.
+A variation of the `useUser` would be expose the `fetchUsers` function, and it does not trigger the data fetching itself:
+
+```tsx
+import { useState } from "react";
+
+const useUser = (id: string) => {
+  // define the states
+
+  const fetchUser = async () => {
+    try {
+      setLoading(true);
+      const data = await get<User>(`/users/${id}`);
+      setUser(data);
+    } catch (e) {
+      setError(e as Error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return {
+    loading,
+    error,
+    user,
+    fetchUser,
+  };
+};
+```
+
+And then on the calling site, `Profile` component use `useEffect` to fetch the data and render different states.
+
+```tsx
+const Profile = ({ id }: { id: string }) => {
+  const { loading, error, user, fetchUser } = useUser(id);
+
+  useEffect(() => {
+    fetchUser();
+  }, []);
+
+  // render correspondingly 
+};
+```
+
+The advantage of this division is the ability to reuse these stateful logics across different components. For instance, another component needing the same data (a user API call with a user ID) can simply import the `useUser` Hook and utilize its states. Different UI components might choose to interact with these states in various ways, perhaps using alternative loading indicators (a smaller spinner that fits to the calling component) or error messages, yet the fundamental logic of fetching data remains consistent and shared.
 
 ## Implement the Friends list
 
-Now let’s have a look at the second section of the Profile - the friend list. We can create a separate component `Friends` and fetch data in it (by using a useFriends custom hook like the useUsers defined above), and the logic is pretty similar to what we see above in the `Profile` component.
+Now let’s have a look at the second section of the Profile - the friend list. We can create a separate component `Friends` and fetch data in it (by using a useFriends custom hook like the useUser defined above), and the logic is pretty similar to what we see above in the `Profile` component.
 
 ```tsx
 const Friends = ({ id }: { id: string }) => {
@@ -579,90 +629,54 @@ The `Friends` component won't initiate data fetching until the user state is set
 
 This waiting period is somewhat inefficient, considering that while React's rendering process only takes a few milliseconds, data fetching can take significantly longer, often seconds. As a result, the `Friends` component spends most of its time idle, waiting for data. This scenario leads to a common challenge known as the Request Waterfall, a frequent occurrence in frontend applications that involve multiple data fetching operations.
 
-## Pattern 1: Parallel requests
+## Pattern 1: Parallel data fetching
+
+Fetch data in parallel when application initialising.
 
 Imagine when we build a larger application that a component that requires data can be deeply nested in the component tree, to make the matter worse these components are developed by different teams, it’s hard to see whom we’re blocking.
 
 ![Request waterfall](images/timeline-1-3-waterfall-more-requests-trans.png)
 
-Luckily such cases can be eliminated simply by parallelizing requests at the upper level in the tree. For example, we could send both requests in `Profile`, and convert `Friends` into a static component that responds only to whatever is passed in.
+Request waterfalls can degrade user experience, something we aim to avoid. Analyzing the data, we see that the user API and friends API are independent and can be fetched in parallel. Initiating these parallel requests becomes critical for application performance.
 
-### Parallel requests with Promise.all
+One approach is to centralize data fetching at a higher level, near the root. Early in the application's lifecycle, we start all data fetches simultaneously. Components dependent on this data wait only for the slowest request, typically resulting in faster overall load times.
 
 We could use the **Promise** API `Promise.all` to send both requests for the user’s basic information and their friends list. `Promise.all` is a JavaScript method that allows for the concurrent execution of multiple promises. It takes an array of promises as input and returns a single Promise that resolves when all of the input promises have resolved, providing their results as an array. If any of the promises fail, `Promise.all` immediately rejects with the reason of the first promise that rejects. 
 
+For instance, at the application's root, we can define a comprehensive data model:
+
+```ts
+type ProfileState = {
+  user: User;
+  friends: User[];
+};
+
+const getProfileData = async (id: string) =>
+  Promise.all([
+    get<User>(`/users/${id}`),
+    get<User[]>(`/users/${id}/friends`),
+  ]);
+
+const App = () => {
+  // fetch data at the very begining of the application launch
+  const onInit = () => {
+    const [user, friends] = await getProfileData(id);
+  }
+
+  // render the sub tree correspondingly
+}
+```
+
+Upon application launch, data fetching begins, abstracting the fetching process from subcomponents. For example, in Profile component, both UserBrief and Friends are presentational components that react to the passed data. This way we could develop these component separately (adding styles for different states, for example). These presentational components normally are easy to test and modify as we have separate the data fetching and rendering.
+
 ```jsx
 const Profile = ({ id }: { id: string }) => {
-  //...
+  const { loading, error, profileState, fetchProfileState } =
+    useProfileData(id);
 
   useEffect(() => {
-    const fetchUserAndFriends = async () => {
-      try {
-        setLoading(true);
-        const [user, friends] = await Promise.all([
-          get<User>(`/users/${id}`),
-          get<User[]>(`/users/${id}/friends`),
-        ]);
-        setUser(user);
-        setFriends(friends);
-      } catch (e) {
-        setError(e as Error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchUserAndFriends();
-  }, [id]);
-
-  //...
-};
-```
-
-Within this `useEffect`, we simultaneously fetch user details and their friends using `Promise.all`, improving efficiency by parallelizing the network requests. Upon success, we update the respective states; on failure, we capture and set any errors encountered. This approach minimizes waiting time, ensuring both datasets are ready for rendering as soon as possible.
-
-And the component structure, if visualized, would be like the following illustration
-
-![Component structure after refactoring](images/async-components-2-trans.png)
-
-And the timeline is much shorter than the previous one as we send two requests in parallel. The `Friends` component can render in a few milliseconds as when it starts to render, the data is already ready and passed in.
-
-![Parallel requests](images/timeline-1-4-parallel-trans.png)
-
-Note that the longest wait time depends on the slowest network request, which is much faster than the sequential ones. And if we could send as many of these independent requests at the same time at an upper level of the component tree, a better user experience can be expected.
-
-This approach is also known as **Fetch-Then-Render**, suggesting that the aim is to initiate requests as early as possible during page load. Subsequently, the fetched data is utilized to drive React's rendering of the application, bypassing the need to manage data fetching amidst the rendering process. This strategy simplifies the rendering process, making the code easier to test and modify.
-
-A valid concern of such structural change is that its potential breach of the Single Responsibility Principle: the `Profile` now knows all the data details of `UserBrief` and `Friends` (along with it's own responsibility and rendering logic), which should in a way be hiden from the outside world. Imagine if we have more subcomponents added in the `Profile`, we could soon be overwhelmed by how to arrange these network requests, which also make the loading state and error handling too complicated. 
-
-We will review this issue in the section Declarative Data Fetching pattern later. However, for the time being, as the application's complexity remains low, handling two requests within a parent component is acceptable. That said, it's possible to decouple data fetching from rendering by utilizing a custom hook in React (or a Service in Angular, for instance):
-
-```tsx
-const useProfileData = (id: string) => {
-  const [loading, setLoading] = useState<boolean>(false);
-  const [error, setError] = useState<Error | undefined>();
-  const [user, setUser] = useState<User | undefined>();
-  const [friends, setFriends] = useState<User[]>([]);
-
-  useEffect(() => {
-    // the fetching logic
-    fetchUserAndFriends();
-  }, [id]);
-
-  return {
-    loading,
-    error,
-    user,
-    friends,
-  };
-};
-```
-
-And thus you can use the custom hook in `Profile` component:
-
-```tsx
-const Profile = ({ id }: { id: string }) => {
-  const { loading, error, user, friends } = useProfileData(id);
+    fetchProfileState();
+  }, []);
 
   if (loading) {
     return <div>Loading...</div>;
@@ -674,16 +688,43 @@ const Profile = ({ id }: { id: string }) => {
 
   return (
     <>
-      {user && <UserBrief user={user} />}
-      <Friends friends={friends} />
+      {profileState?.user && <UserBrief user={profileState?.user} />}
+      <Friends users={profileState?.friends ?? []} />
     </>
   );
 };
 ```
 
-And then we can think of `Friends` and `UserBrief` as presentional component that only accepts data and render DOM as result. This way we could develop these component separately (adding styles for different states, for example). These presentational components normally are easy to test and modify as we have separate the data fetching and rendering.
+Within this `useEffect`, we simultaneously fetch user details and their friends using `fetchProfileState`, improving efficiency by parallelizing the network requests. Upon success, we update the respective states; on failure, we capture and set any errors encountered. This approach minimizes waiting time, ensuring both datasets are ready for rendering as soon as possible.
 
-However, there are cases while you cannot parallel requests, for example, we will make a recommendation feeds list on the `Profile` page, and this recommendation needs users’ **interests**, the API is defined as `/users/recommendations/<interest>` for example. 
+This approach is also known as **Fetch-Then-Render**, suggesting that the aim is to initiate requests as early as possible during page load. Subsequently, the fetched data is utilized to drive React's rendering of the application, bypassing the need to manage data fetching amidst the rendering process. This strategy simplifies the rendering process, making the code easier to test and modify.
+
+And the component structure, if visualized, would be like the following illustration
+
+![Component structure after refactoring](images/async-components-2-trans.png)
+
+And the timeline is much shorter than the previous one as we send two requests in parallel. The `Friends` component can render in a few milliseconds as when it starts to render, the data is already ready and passed in.
+
+![Parallel requests](images/timeline-1-4-parallel-trans.png)
+
+Note that the longest wait time depends on the slowest network request, which is much faster than the sequential ones. And if we could send as many of these independent requests at the same time at an upper level of the component tree, a better user experience can be expected.
+
+As applications expand, managing an increasing number of requests becomes challenging. This is particularly true for components distant from the root level, where passing down data becomes cumbersome. One approach is to store all data globally, accessible via functions (like Redux or the React Context API), avoiding deep prop drilling.
+
+### Side note of Relay and GraphQL
+
+However, GraphQL and Relay offer an efficient alternative in the React ecosystem. Relay compiles data requirements defined in GraphQL queries or fragments at build time, consolidating them into a single query. This query is executed at the application's startup, storing the data locally and notifying components upon data availability.
+
+Key benefits include:
+
+- **Cohesion**: Data dependencies and components are defined together, eliminating the need for prop passing.
+- **Transparency**: Data stored locally can be refreshed as needed, abstracting complexity from developers.
+
+It's important to note that this approach is specific to GraphQL and React, and may not suit all tech stacks.
+
+### When it doesn't work
+
+Sending parallel reqeusts isn't the one size fit all solution by any means. Actually, there are cases while you cannot parallel requests, for example, consider we need to make a recommendation feeds list on the `Profile` page, and this recommendation needs users’ **interests**, the API is defined as `/users/recommendations/<interest>`. 
 
 ```json
 {
@@ -698,7 +739,9 @@ However, there are cases while you cannot parallel requests, for example, we wil
 }
 ```
 
-That means we can only send a request for fetching the recommendation articles **after** we have already have the response of the **user** API. We'll explore this matter further in the Declarative Data Fetching section. Meanwhile, let's enhance the `Friend` list component as an example to showcase the technique of code splitting and lazy loading.
+That means we can only send a request for fetching the recommendation articles **after** we have already have the response of the **user** API.
+
+We'll explore this matter further in the Declarative Data Fetching section. Meanwhile, let's enhance the `Friend` list component as an example to showcase the technique of code splitting and lazy loading.
 
 ## Introducing UserDetailCard comopnent
 
