@@ -714,7 +714,7 @@ As applications expand, managing an increasing number of requests at root level 
 
 ### When it doesn't work
 
-Sending parallel reqeusts isn't the one size fit all solution by any means. Actually, there are cases while you cannot parallel requests, for example, consider we need to make a recommendation feeds list on the `Profile` page, and this recommendation needs users’ **interests**, the API is defined as `/users/recommendations/<interest>`. 
+ Parallel Data Fetching isn't a universal solution. In fact, there are situations where requests cannot be made in parallel. For example, generating a recommendation feed on the `Profile` page that requires users' **interests**, and user's *interests* only comes from a user API's response, the sequential dependency means parallelization isn't feasible.
 
 ```json
 {
@@ -729,11 +729,15 @@ Sending parallel reqeusts isn't the one size fit all solution by any means. Actu
 }
 ```
 
-That means we can only send a request for fetching the recommendation articles **after** we have already have the response of the **user** API.
+We can only send a request for fetching the recommendation feeds **after** we have already have the response of the **user** API.
 
-Based on the discussion about Asynchronous state management and Parallel data fetching, I think a related pattern about stylish of the code worth to discuss, it's the Declarative Data Fetching.
+Based on the discussion about Asynchronous State Management and Parallel Data Fetching, I think a related pattern about stylish of the code worth to discuss, it's the Declarative Data Fetching pattern.
 
 ## Pattern: Declarative Data Fetching
+
+The Declarative Data Fetching is a development approach where you specify what data your application needs in a high-level, declarative way, rather than detailing how to fetch that data. 
+
+This pattern leverages abstractions provided by frameworks or libraries to handle the data retrieval process, including managing states like loading, success, and error, behind the scenes. It allows developers to focus on the structure and presentation of data in their applications, promoting cleaner and more maintainable code.
 
 Let's take another look at the `Friends` component in the above section. It has to maintain three different states and register the callback in `useEffect`, setting the flag correctly at the right time, arrange the different UI for different states:
 
@@ -771,7 +775,7 @@ If we think of declarative API, like how we build our UI with JSX, the code can 
 </WhenError>
 ```
 
-In the above code snippet, the intention is simple and clear: f an error occurs, ErrorMessage is displayed. While the operation is in progress, Loading is shown. Once the operation completes without errors, the Friends component is rendered.
+In the above code snippet, the intention is simple and clear: when an error occurs, ErrorMessage is displayed. While the operation is in progress, Loading is shown. Once the operation completes without errors, the Friends component is rendered.
 
 And that's pretty similiar to what already be implemented in a few libraries (including React and Vue.js). For example, the new Suspense in React allows developers to more effectively manage asynchronous operations within their components, improving the handling of loading states, error states, and the orchestration of concurrent tasks.
 
