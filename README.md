@@ -425,7 +425,7 @@ Now in the browser, we can see a "loading..." when the application starts and th
 
 This code structure is widely used across React codebases, especially those requiring data fetching from an API endpoint. In applications of regular size, it's common to find numerous instances of such data-fetching logic dispersed throughout various components. 
 
-## Pattern 0: Asynchronous State Handler
+## Pattern: Asynchronous State Handler
 
 Reusable Logic for Data Fetching and State Management.
 
@@ -629,7 +629,7 @@ The `Friends` component won't initiate data fetching until the user state is set
 
 This waiting period is somewhat inefficient, considering that while React's rendering process only takes a few milliseconds, data fetching can take significantly longer, often seconds. As a result, the `Friends` component spends most of its time idle, waiting for data. This scenario leads to a common challenge known as the Request Waterfall, a frequent occurrence in frontend applications that involve multiple data fetching operations.
 
-## Pattern 1: Parallel data fetching
+## Pattern: Parallel data fetching
 
 Fetch data in parallel when application initialising.
 
@@ -730,7 +730,100 @@ Sending parallel reqeusts isn't the one size fit all solution by any means. Actu
 
 That means we can only send a request for fetching the recommendation articles **after** we have already have the response of the **user** API.
 
-We'll explore this matter further in the Declarative Data Fetching section. Meanwhile, let's enhance the `Friend` list component as an example to showcase the technique of code splitting and lazy loading.
+Based on the discussion about Asynchronous state management and Parallel data fetching, I think a related pattern about stylish of the code worth to discuss, it's the Declarative Data Fetching.
+
+## Pattern: Declarative Data Fetching
+
+Let's take another look at the `Friends` component in the above section. It has to maintain three different states and register the callback in `useEffect`, setting the flag correctly at the right time, arrange the different UI for different states:
+
+```jsx
+const Friends = ({ id }: { id: string }) => {
+  //...
+  const { loading, error, friends, fetchFriends } = useFriends(id);
+
+  useEffect(() => {
+    fetchFriends();
+  }, []);
+  
+  if (loading) {
+    // show loading indicator
+  }
+
+  if (error) {
+    // show error message component
+  }
+
+  // show the acutal friend list
+};
+```
+
+
+You will notice that **inside** a component we have to deal with different states, even we extract custom Hook to reduce the noise in a component, we still need to pay good attention to handling `loading` and `error` inside a component. These boilerplate code can be cumbersome and distracting, often cluttering the readability of our codebase.
+
+If we think of declarative API, like how we build our UI with JSX, the code can be written in the following manner that allows you to focus on **what the component is doing - not how to do it**:
+
+```tsx
+<WhenError fallback={<ErrorMessage />}>
+  <WhenInProgress fallback={<Loading />}>
+    <Friends />
+  </WhenInProgress>
+</WhenError>
+```
+
+In the above code snippet, the intention is simple and clear: f an error occurs, ErrorMessage is displayed. While the operation is in progress, Loading is shown. Once the operation completes without errors, the Friends component is rendered.
+
+And that's pretty similiar to what already be implemented in a few libraries (including React and Vue.js). For example, the new Suspense in React allows developers to more effectively manage asynchronous operations within their components, improving the handling of loading states, error states, and the orchestration of concurrent tasks.
+
+Suspense in React is a mechanism for efficiently handling asynchronous operations, such as data fetching or resource loading, in a declarative manner. By wrapping components in a Suspense boundary, developers can specify fallback content to display while waiting for the component's data dependencies to be fulfilled, streamlining the user experience during loading states.
+
+While with the Suspense API, in the `Friends` you describe what you want to get and then render:
+
+```jsx
+import useSWR from "swr";
+import {get} from "../utils.ts";
+
+function Friends({ id }: { id: string }) {
+  const { data: users } = useSWR("/api/profile", () => get<User[]>(`/users/${id}/friends`), {
+    suspense: true,
+  });
+
+  return (
+    <div>
+      <h2>Friends</h2>
+      <div>
+        {friends.map((user) => (
+          <Friend user={user} key={user.id} />
+        ))}
+      </div>
+    </div>
+  );
+}
+```
+
+And declaratively when you use the `Friends`, you use Suspense Boundary to wrap around the Friends component:
+
+```tsx
+<Suspense fallback={<FriendsSkeleton />}>
+  <Friends id={id} />
+</Suspense>
+```
+
+`Suspense` manages the asynchronous loading of the `Friends` component, showing a `<FriendsSkeleton />` placeholder until the component's data dependencies are resolved. This setup ensures that the user interface remains responsive and informative during data fetching, improving the overall user experience by seamlessly integrating loading state management.
+
+It's worth noting that Vue.js is also exploring a similar experimental pattern, where you can employ declarative data fetching using:
+
+```text
+<Suspense>
+  <template #default>
+    <AsyncComponent />
+  </template>
+  <template #fallback>
+    Loading...
+  </template>
+</Suspense>
+```
+
+Upon the first render, `<Suspense>` attempts to render its default content behind the scenes. Should it encounter any asynchronous dependencies during this phase, it transitions into a pending state, where the fallback content is displayed instead. Once all the asynchronous dependencies are successfully loaded, `<Suspense>` moves to a resolved state, and the content initially intended for display (the default slot content) is rendered.
 
 ## Introducing UserDetailCard comopnent
 
@@ -784,7 +877,7 @@ We’re using `Popover` and the supporting components from `nextui`, which provi
 
 ![Component structure with UserDetailCard](images/async-components-3-trans.png)
 
-## Pattern 2: Code splitting
+## Pattern: Code splitting
 
 Divide code into separate modules and dynamically load them as needed.
 
@@ -873,7 +966,7 @@ The function `defineAsyncComponent` defines an async component which is lazy loa
 
 As you might have already seen the noticed, we are running into a Request Waterfall here again: we load the JavaScript bundle first, and then when it execute it sequentially call user details API, which makes some extra waiting time. We could request the JavaScript bundle and the network request parallely. Meaning, whenever a `Friend` component is hovered, we can trigger a network request and cache the result, so that by the time when the bundle is downloaded, we can use the data to render the component immediately.
 
-## Pattern 3: Prefetching
+## Pattern: Prefetching
 
 Prefetch data with user interation.
 
@@ -957,8 +1050,7 @@ export function UserDetailCard({ id }: { id: string }) {
 
 This component uses the `useSWR` hook for data fetching, making the `UserDetailCard` dynamically load user details based on the given `id`. `useSWR` offers efficient data fetching with caching, revalidation, and automatic error handling. The component displays a loading state until the data is fetched. Once the data is available, it proceeds to render the user details.
 
-
-As we transition to the next part of our discussion, we've already explored critical data fetching strategies: Parallel Data Fetching, Code Splitting, and Prefetching. Elevating requests for parallel execution enhances efficiency, though it's not always straightforward, especially when dealing with components developed by different teams without full visibility. Code splitting allows for the dynamic loading of non-critical resources based on user interaction, like clicks or hovers, utilizing prefetching to parallelize resource loading. 
+As we transition to the next part of our discussion, we've already explored critical data fetching strategies: Parallel Data Fetching, Code Splitting, Declarative Data Fetching and Prefetching. Elevating requests for parallel execution enhances efficiency, though it's not always straightforward, especially when dealing with components developed by different teams without full visibility. Code splitting allows for the dynamic loading of non-critical resources based on user interaction, like clicks or hovers, utilizing prefetching to parallelize resource loading. 
 
 This discussion presupposes a traditional division between backend data provision and frontend consumption. Yet, it's worth questioning whether a more integrated approach, where the backend supplies a richer dataset and content upfront, could minimize or eliminate the need for additional fetches, challenging the conventional frontend-backend dichotomy.
 
@@ -989,7 +1081,7 @@ console.log(html);
 
 The above application is a normal Node script that can be executed in the backend server, it prints out the application on the console.
 
-```jsx
+```html
 <div><div><h1>Juntao Qiu</h1><p>Developer, Educator, Author</p></div></div>
 ```
 
@@ -997,13 +1089,65 @@ You can then place such content into the `<div id="root"></div>`, and then in th
 
 ![Server-Side Rendering with hydrate](images/timeline-1-7-ssr-hydrate-trans.png)
 
-In theory, the mechanism works perfectly, and both the backend and frontend are working seamlessly. However, if the output is too long, `renderToString` might not be a good option as it needs all the components to be rendered, and then send the whole response text to the browser.
+## Pattern: Static Site Generation
 
-Traditional Server-Side Rendering (SSR) does not inherently support client-side data fetching mechanisms like `useEffect`, which only operates in a browser environment. This limitation necessitates a system that enables data to be fetched on the server side. Additionally, an ideal setup would allow for the immediate sending of smaller, non-data-dependent chunks to the client, providing early content while deferring more complex, data-reliant components. For these components, a preliminary fallback could be displayed until the necessary data is retrieved and subsequently used to progressively enrich the client-side rendering with more detailed content as it becomes available.
+Static Site Generation (SSG) is a method where web pages are pre-rendered at build time, resulting in fast-loading, static HTML files ready for deployment.
+
+Unlike dynamic sites that generate content on the fly with each request, SSG prepares all pages in advance. This approach means that a server simply serves pre-built HTML, CSS, and JavaScript files to the browser without the need to execute server-side code or database queries at runtime.
+
+Static Site Generation (SSG) offers numerous benefits, including enhanced load speeds due to the ability to serve static files swiftly from a Content Delivery Network (CDN). It also bolsters security since it eliminates direct interaction with databases or server-side applications. Additionally, SSG can significantly improve SEO outcomes because the content becomes immediately available upon page load.
+
+Like other patterns we discussed so far, SSG's utility isn't confined to any specific frontend library; its application predates many of these libraries. Developers have the flexibility to implement SSG using various backend technologies, such as PHP, Ruby, or Java. However, in contexts where you and your team possess expertise in building client-side React applications, or where existing logic from such applications can be repurposed for static site generation, leveraging isomorphic React could be particularly advantageous.
+
+SSG is especially favored for projects like blogs, documentation sites, and marketing websites, where the content remains static or seldom changes. For instance, if we want to generate some advertisements when the website is built (instead of everytime when user request the page), we can define a React Server Component like the following:
+
+```jsx
+async function getAds(): Promise<Ad[]> {
+  return await get("/ads");
+}
+
+export async function Ads() {
+  const ads = await getAds();
+
+  return (
+    <div>
+      <h2>Ads</h2>
+      <div>
+        {ads.map((ad) => (
+          <div key={ad.id}>
+            <h3>{ad.title}</h3>
+            <p>{ad.content}</p>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+```
+
+The `Ads` component above only fetches data at build time rather than runtime. When the site is being built, `getAds` is called to fetch advertisements data from the `/ads` endpoint. This async function retrieves an array of ads, and this data becomes immediately available as part of the component's build process. 
+
+![Static Generated Content - Ads](images/ads.png)
+
+The component then renders HTML for each advertisement, including the ad's title and content. Since the ads are fetched during the build process, the rendered page with all its advertisements is served as static HTML to the user. This means there's no need for the client's browser to run JavaScript to fetch the ads after the page loads, leading to faster page rendering and an improved user experience. 
+
+If we visualize the timeline, you can clearly see that the effort to render the full version of the page is pre-made. Thus, there's no need to fetch data dynamically through side effects.
+
+![Static Site Generation](images/timeline-1-8-static-site-generation-trans.png)
+
+It's important to understand that Static Site Generation (SSG) is seldom employed in isolation when constructing a web application. Invariably, you'll require certain content to be tailored to individual users or specific scenarios (for instance, pages like a `Profile` or `My Orders` cannot be pre-generated since their content depends on user interaction with the application). Thus, SSG should be viewed as an adjunct method, rather than a solitary approach, for website development. The key lies in discerning which content can be pre-generated to improve the performance and thus user experience.
+
+## Pattern: Server Component
+
+Simply put, Server Components are components that are rendered on the server side, enabling operations like data fetching and content generation without sending the component's code or logic to the client, thus reducing the amount of JavaScript needed for the page and improving load times.
+
+Traditional Server-Side Rendering (SSR) does not inherently support client-side data fetching mechanisms (like `useEffect` in React applications), which only operates in a browser environment. This limitation necessitates a system that enables data to be fetched on the server side. 
+
+Additionally, an ideal setup would allow for the immediate sending of smaller, non-data-dependent chunks to the client, providing early content while deferring more complex, data-reliant components. For these components, a preliminary fallback could be displayed until the necessary data is retrieved and subsequently used to progressively enrich the client-side rendering with more detailed content as it becomes available.
 
 React Server Components address this challenge by enhancing asynchronous programming techniques throughout React applications. Similar mechanisms for advanced Server-Side Rendering exist in other libraries as well. However, for the purpose of our discussion on the `Profile` example, we'll continue to focus on utilizing React Server Components.
 
-## Introducing React Server Component
+### Introducing React Server Component
 
 React Server Components allow rendering components on the server, reducing client-side bundle size and improving performance by fetching data and executing logic server-side. They seamlessly integrate with client components for an optimized, interactive user experience.
 
@@ -1030,9 +1174,9 @@ async function Friends({ id }: { id: string }) {
 }
 ```
 
-This Server Component above `Friends` showcases direct server-side data fetching with an `async` function to retrieve a user's friends. Unlike traditional client components that initiate data fetching effects (`useEffect`) and manage loading states within the browser, server components fetch data during server-side rendering. The `getFriends` call executes on the server, with the resulting friends list rendered into HTML before reaching the client. 
+This Server Component above `Friends` showcases direct server-side data fetching with an `async` function to retrieve a user's friends. Unlike traditional client components that initiate data fetching effects (`useEffect`) and manage loading states within the browser, server components fetch data during **server-side rendering**. The `getFriends` call executes on the server, with the resulting friends list rendered into HTML before reaching the client. 
 
-The most beautiful part about Server Components is how we can leverage Suspense API to wrap the data-fetching component, and let the component itself free from the state (loading, error handling states) managment.
+Server Components leverage Suspense API to wrap the data-fetching component, and let the component itself free from the state (loading, error handling states) managment as we mentioned in the Declarative Data Fetching section.
 
 ```tsx
 <Suspense fallback={<FriendsSkeleton />}>
@@ -1046,85 +1190,7 @@ Initially, the HTML for `FriendsSkeleton` is sent to the client, giving users an
 
 Within the ecosystems of other libraries such as Vue.js and Angular, there exist comparable solutions, notably Nuxt for Vue.js and Angular Universal for Angular. These frameworks offer built-in server-side rendering (SSR) capabilities, including data fetching, allowing the patterns discussed here to be similarly applied, albeit through their distinct approaches.
 
-## Pattern 4: Declarative Data Fetching
-
-Originally, Suspense was primarily used for code-splitting and lazy loading components. However, its scope has been broadened to include data fetching and other asynchronous operations, marking a significant evolution from its initial introduction.
-
-This broader use of Suspense allows developers to more effectively manage asynchronous dependencies within their components, improving the handling of loading states, error states, and the orchestration of concurrent tasks. It can significantly improve code clarity. Without these noise, it allows you to focus on **what the component is doing - not how to do it**.
-
-Think of the `Friends` component above in the first section. It has to maintain three different states and register the callback in `useEffect`, setting the flag correctly at the right time, which is pretty annoying:
-
-```jsx
-const Friends = ({ id }: { id: string }) => {
-  //...
-
-  useEffect(() => {
-    const fetchFriends = async () => {
-      try {
-        setLoading(true);
-        const data = await get<User[]>(`/users/${id}/friends`);
-        setUsers(data);
-      } catch (e) {
-        setError(e as Error);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchFriends();
-  }, [id]);
-  
-  // loading & error handling...
-};
-```
-
-While with the new suspense and React Server Component, the language you use is much simpler, and in the `Friends` you describe what you want to get and then render:
-
-```jsx
-async function Friends({ id }: { id: string }) {
-  const friends = await getFriends(id);
-
-  return (
-    <div>
-      <h2>Friends</h2>
-      <div>
-        {friends.map((user) => (
-          <Friend user={user} key={user.id} />
-        ))}
-      </div>
-    </div>
-  );
-}
-```
-
-And declaratively when you use the `Friends`, you use an Error boundary and Suspense Boundary:
-
-```jsx
-<ErrorBoundary fallback={<Error />}>
-	<Suspense fallback={<FriendsSkeleton />}>
-	  <Friends id={id} />
-	</Suspense>
-</ErrorBoundary>
-```
-
-The `ErrorBoundary` catches any rendering errors in its child components and displays the specified fallback UI, in this case, `<Error />`. Nested within it, `Suspense` manages the asynchronous loading of the `Friends` component, showing a `<FriendsSkeleton />` placeholder until the component's data dependencies are resolved. This setup ensures that the user interface remains responsive and informative during data fetching and in the event of any errors, improving the overall user experience by seamlessly integrating error handling and loading state management.
-
-It's worth noting that Vue.js is also exploring a similar experimental pattern, where you can employ declarative data fetching using:
-
-```text
-<Suspense>
-  <template #default>
-    <AsyncComponent />
-  </template>
-  <template #fallback>
-    Loading...
-  </template>
-</Suspense>
-```
-
-Upon the first render, `<Suspense>` attempts to render its default content behind the scenes. Should it encounter any asynchronous dependencies during this phase, it transitions into a pending state, where the fallback content is displayed instead. Once all the asynchronous dependencies are successfully loaded, `<Suspense>` moves to a resolved state, and the content initially intended for display (the default slot content) is rendered.
-
-## Pattern 5: Streaming Server-Side Rendering
+## Pattern: Streaming Server-Side Rendering
 
 From React 18 onwards, several streaming rendering APIs have been introduced. Similar to how we handle I/O operations, we don't need to load everything into memory at once. Instead, we process the data in smaller chunks and in a streaming manner. With streaming, we can immediately render what's available to the user without waiting for all content to be ready.
 
@@ -1231,54 +1297,6 @@ Please note the Suspense is nested. By allowing individual components that fetch
 The benefits of this approach are multifold. It leads to an improvement in user experience by ensuring that users receive immediate and meaningful feedback. The modularization of loading states simplifies code maintenance and enhances readability, as developers can focus on the loading logic of individual components rather than orchestrating state across the entire application. Moreover, this model optimizes performance by allowing React to render parts of the application as soon as their data becomes available, rather than waiting for an entire component tree to load. In essence, nested **`Suspense`** empowers developers to build more reactive, resilient, and user-centric React applications.
 
 Finally, I'd like to discuss Static Site Generation (SSG), which is equally important. In many cases, when we know what data to fetch before the user makes a request, we can make your web application extremely fast and responsive. Keep in mind that to build a web application, you'll typically need to combine Static Site Generation (SSG) with other data fetching patterns.
-
-## Pattern 6: Static Site Generation
-
-Static Site Generation (SSG) is a methodology in web development where web pages are pre-rendered to static HTML files during a build process before deployment. Unlike dynamic sites that generate content on the fly with each request, SSG prepares all pages in advance. This approach means that a server simply serves pre-built HTML, CSS, and JavaScript files to the browser without the need to execute server-side code or database queries at runtime.
-
-Static Site Generation (SSG) offers numerous benefits, including enhanced load speeds due to the ability to serve static files swiftly from a Content Delivery Network (CDN). It also bolsters security since it eliminates direct interaction with databases or server-side applications. Additionally, SSG can significantly improve SEO outcomes because the content becomes immediately available upon page load.
-
-It's worth noting that SSG's utility isn't confined to any specific frontend library; its application predates many of these libraries. Developers have the flexibility to implement SSG using various backend technologies, such as PHP, Ruby, or Java. However, in contexts where you and your team possess expertise in building client-side React applications, or where existing logic from such applications can be repurposed for static site generation, leveraging isomorphic React could be particularly advantageous.
-
-SSG is especially favored for projects like blogs, documentation sites, and marketing websites, where the content remains static or seldom changes.
-
-For instance, if we want to generate some advertisements when the website is built (instead of everytime when user request the page), we can define a React Server Component like the following:
-
-```jsx
-async function getAds(): Promise<Ad[]> {
-  return await get("/ads");
-}
-
-export async function Ads() {
-  const ads = await getAds();
-
-  return (
-    <div>
-      <h2>Ads</h2>
-      <div>
-        {ads.map((ad) => (
-          <div key={ad.id}>
-            <h3>{ad.title}</h3>
-            <p>{ad.content}</p>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-```
-
-The `Ads` component above only fetches data at build time rather than runtime. When the site is being built, `getAds` is called to fetch advertisements data from the `/ads` endpoint. This async function retrieves an array of ads, and this data becomes immediately available as part of the component's build process. 
-
-![Static Generated Content - Ads](images/ads.png)
-
-The component then renders HTML for each advertisement, including the ad's title and content. Since the ads are fetched during the build process, the rendered page with all its advertisements is served as static HTML to the user. This means there's no need for the client's browser to run JavaScript to fetch the ads after the page loads, leading to faster page rendering and an improved user experience. 
-
-If we visualize the timeline, you can clearly see that the effort to render the full version of the page is pre-made. Thus, there's no need to fetch data dynamically through side effects.
-
-![Static Site Generation](images/timeline-1-8-static-site-generation-trans.png)
-
-It's important to understand that Static Site Generation (SSG) is seldom employed in isolation when constructing a web application. Invariably, you'll require certain content to be tailored to individual users or specific scenarios (for instance, pages like a `Profile` or `My Orders` cannot be pre-generated since their content depends on user interaction with the application). Thus, SSG should be viewed as an adjunct method, rather than a solitary approach, for website development. The key lies in discerning which content can be pre-generated to improve the performance and thus user experience.
 
 We've covered a wide range of patterns and how they apply to various challenges. I realize there's quite a bit to take in, from code examples to diagrams. If you're looking for a more guided approach, I've put together [a comprehensive tutorial](https://www.icodeit.com.au/tutorials/advanced-network-patterns-react) on my website. It offers a more interactive exploration of these concepts, so don't hesitate to check it out for a deeper dive into the subject.
 
