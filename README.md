@@ -711,17 +711,6 @@ Note that the longest wait time depends on the slowest network request, which is
 
 As applications expand, managing an increasing number of requests becomes challenging. This is particularly true for components distant from the root level, where passing down data becomes cumbersome. One approach is to store all data globally, accessible via functions (like Redux or the React Context API), avoiding deep prop drilling.
 
-### Side note of Relay and GraphQL
-
-However, GraphQL and Relay offer an efficient alternative in the React ecosystem. Relay compiles data requirements defined in GraphQL queries or fragments at build time, consolidating them into a single query. This query is executed at the application's startup, storing the data locally and notifying components upon data availability.
-
-Key benefits include:
-
-- **Cohesion**: Data dependencies and components are defined together, eliminating the need for prop passing.
-- **Transparency**: Data stored locally can be refreshed as needed, abstracting complexity from developers.
-
-It's important to note that this approach is specific to GraphQL and React, and may not suit all tech stacks.
-
 ### When it doesn't work
 
 Sending parallel reqeusts isn't the one size fit all solution by any means. Actually, there are cases while you cannot parallel requests, for example, consider we need to make a recommendation feeds list on the `Profile` page, and this recommendation needs users’ **interests**, the API is defined as `/users/recommendations/<interest>`. 
