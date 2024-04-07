@@ -709,7 +709,7 @@ And the timeline is much shorter than the previous one as we send two requests i
 
 Note that the longest wait time depends on the slowest network request, which is much faster than the sequential ones. And if we could send as many of these independent requests at the same time at an upper level of the component tree, a better user experience can be expected.
 
-As applications expand, managing an increasing number of requests becomes challenging. This is particularly true for components distant from the root level, where passing down data becomes cumbersome. One approach is to store all data globally, accessible via functions (like Redux or the React Context API), avoiding deep prop drilling.
+As applications expand, managing an increasing number of requests at root level becomes challenging. This is particularly true for components distant from the root, where passing down data becomes cumbersome. One approach is to store all data globally, accessible via functions (like Redux or the React Context API), avoiding deep prop drilling.
 
 ### When it doesn't work
 
@@ -766,20 +766,7 @@ The `UserDetailCard`, is pretty similar to the `Profile` component, it sends a r
 
 ```jsx
 export function UserDetailCard({ id }: { id: string }) {
-  const [loading, setLoading] = useState<boolean>(false);
-  const [detail, setDetail] = useState<UserDetail | undefined>();
-
-  useEffect(() => {
-    const fetchUserDetail = async () => {
-      setLoading(true);
-      const data = await get<UserDetail>(`/users/${id}/details`);
-
-      setLoading(false);
-      setDetail(data);
-    };
-
-    fetchUserDetail();
-  }, [id]);
+  const { loading, error, detail } = useUserDetail(id);
 
   if (loading || !detail) {
     return <div>Loading...</div>;
@@ -797,13 +784,37 @@ We’re using `Popover` and the supporting components from `nextui`, which provi
 
 ![Component structure with UserDetailCard](images/async-components-3-trans.png)
 
-Traditionally, code splitting is the technique used to tackle this challenge. At build time, larger or more complex modules are segmented into separate files (or bundles). These segments are then loaded dynamically based on user interactions or at a stage that doesn't obstruct the application's critical path, ensuring efficient loading without delaying essential content.
+## Pattern 2: Code splitting
 
-## Pattern 2: Code splitting and lazy load
+Divide code into separate modules and dynamically load them as needed.
 
-It’s easy to achieve within React’s lazy and suspense API. So instead of static import, we use `React.lazy` to wrap the import statement, and wrap the `UserDetailCard` with a `Suspense`. When React encounters the suspense boundary, it shows a `fallback` first, and when the dynamic file is loaded, it tries to render it.
+Code splitting addresses the issue of large bundle sizes in web applications by dividing the bundle into smaller chunks that are loaded as needed, rather than all at once. This improves initial load time and performance, especially important for large applications or those with many routes.
 
-```jsx
+This optimization is typically carried out at build time, where complex or sizable modules are segregated into distinct bundles. These are then dynamically loaded, either in response to user interactions or preemptively, in a manner that does not hinder the critical rendering path of the application.
+
+### Leveraging the Dynamic Import Operator
+
+JavaScript's dynamic import operator facilitates this process. The following code snippet illustrates that when the `toggle` button is clicked, it asynchronously loads `calculator.js` from the server. Upon successful loading, it executes the `calculator.add` function to perform a calculation, displaying the result on the page.
+
+```js
+const result = document.querySelector("#result");
+
+document.querySelector("#toggle").addEventListener("change", () => {
+  import("/calculator.js")
+    .then((calculator) => {
+      const addition = calculator.add(1, 5);
+      result.innerHTML = 
+        `Script calculator.js loaded successfully, function call returns ${addition}.`;
+    })
+    .catch((error) => {
+      result.innerHTML = `Error loading script calculator.js: ${error}.`;
+    });
+});
+```
+
+This approach is not limited to JavaScript but is also applicable in frameworks like React and libraries like Vue.js. React simplifies the implementation through the `React.lazy` and `Suspense` APIs. By wrapping the import statement with `React.lazy`, and subsequently wrapping the component, for instance, `UserDetailCard`, with `Suspense`, React defers the component rendering until the required module is loaded. During this loading phase, a fallback UI is presented, seamlessly transitioning to the actual component upon load completion.
+
+```tsx
 import React, { Suspense } from "react";
 import { Popover, PopoverContent, PopoverTrigger } from "@nextui-org/react";
 import { UserBrief } from "./user.tsx";
@@ -828,7 +839,7 @@ export const Friend = ({ user }: { user: User }) => {
 };
 ```
 
-This snippet defines a `Friend` component displaying user details within a popover from Next UI, which appears upon interaction. It leverages `React.lazy` for code-splitting, loading the `UserDetailCard` component only when needed. This lazy-loading, combined with `Suspense`, enhances performance by splitting the bundle and showing a fallback during the load.
+This snippet defines a `Friend` component displaying user details within a popover from Next UI, which appears upon interaction. It leverages `React.lazy` for code splitting, loading the `UserDetailCard` component only when needed. This lazy-loading, combined with `Suspense`, enhances performance by splitting the bundle and showing a fallback during the load.
 
 If we visualize the above code, it renders in the following sequence.
 
@@ -858,33 +869,32 @@ const UserDetailCard = defineAsyncComponent(() => import('./UserDetailCard.vue')
 </script>
 ```
 
-The function `defineAsyncComponent` defines an async component which is lazy loaded only when it is rendered just like the `React.lazy`. You could even use the dynamic import operator in any JavaScript applications as it's now a standard language feature.
+The function `defineAsyncComponent` defines an async component which is lazy loaded only when it is rendered just like the `React.lazy`.
 
-### The dynamic import operator
+As you might have already seen the noticed, we are running into a Request Waterfall here again: we load the JavaScript bundle first, and then when it execute it sequentially call user details API, which makes some extra waiting time. We could request the JavaScript bundle and the network request parallely. Meaning, whenever a `Friend` component is hovered, we can trigger a network request and cache the result, so that by the time when the bundle is downloaded, we can use the data to render the component immediately.
 
-The following code snippet illustrates that when the `toggle` button is clicked, it asynchronously loads `calculator.js` from the server. Upon successful loading, it executes the `calculator.add` function to perform a calculation, displaying the result on the page.
+## Pattern 3: Prefetching
 
-```js
-const result = document.querySelector("#result");
+Prefetch data with user interation.
 
-document.querySelector("#toggle").addEventListener("change", () => {
-  import("/calculator.js")
-    .then((calculator) => {
-      const addition = calculator.add(1, 5);
-      result.innerHTML = 
-        `Script calculator.js loaded successfully, function call returns ${addition}.`;
+Prefetching involves loading resources or data before they're needed, aiming to reduce wait times for future operations. It's particularly useful in scenarios where user actions can be anticipated, such as navigating to another page or showing a model dialog that needs remote data. In practice, prefetching can be implemented using the `fetch` API to load data or resources before they are needed. 
+
+For example, attaching a `mouseover` event listener to a button can trigger the prefetching of data. This method allows the data to be fetched and stored, perhaps in a local state or cache, ready for immediate use when the actual component or content requiring the data is interacted with or rendered. This proactive loading minimizes latency and enhances the user experience by having data ready ahead of time.
+
+```ts
+document.getElementById('button').addEventListener('mouseover', () => {
+  fetch(`/user/${user.id}/details`)
+    .then(response => response.json())
+    .then(data => {
+      sessionStorage.setItem('userDetails', JSON.stringify(data));
     })
-    .catch((error) => {
-      result.innerHTML = `Error loading script calculator.js: ${error}.`;
-    });
+    .catch(error => console.error(error));
 });
 ```
 
-## Pattern 3: Preload data
+And in the place that needs the data to render, it reads from `sessionStorage` when available, otherwise showing a loading indicator. Normally the user experiense would be much faster.
 
-As you might have already seen the similarity here -  we load the JavaScript bundle first, and then when it execute it sequentially download user details, which makes some extra waiting time. We could request the JavaScript bundle and the network request parallely. Meaning, whenever a `Friend` component is hovered, we can trigger a network request and cache the result, so that by the time when the bundle returns, we can use the data to render the component immediately.
-
-For example, we can use `preload` from the `swr` package, and then register an `onMouseEnter` event to the trigger component of `Popover`,
+For example, we can use `preload` from the `swr` package (the function name is a bit misleading, but it is performing a prefetch here), and then register an `onMouseEnter` event to the trigger component of `Popover`,
 
 ```jsx
 import { preload } from "swr";
@@ -916,13 +926,13 @@ export const Friend = ({ user }: { user: User }) => {
 
 That way, the popup itself can have much less time to render, which brings a better user experience.
 
-![Dynamic load with preload in parallel](images/timeline-1-6-preload-trans.png)
+![Dynamic load with prefetch in parallel](images/timeline-1-6-preload-trans.png)
 
-So when a user hovers on a `Friend`, we download the corresponding JavaScript bundle as well as download the data needed to render the user detail, and by the time `UserDetailCard` renders, it sees the existing data and renders immediately.
+So when a user hovers on a `Friend`, we download the corresponding JavaScript bundle as well as download the data needed to render the UserDetailCard, and by the time `UserDetailCard` renders, it sees the existing data and renders immediately.
 
 ![Component structure with dynamic load](images/async-components-4-trans.png)
 
-The data fetching and loading is shifted to `Friend`, and for `UserDetailCard`, it reads from the local cache maintained by `swr`.
+As the data fetching and loading is shifted to `Friend` component, and for `UserDetailCard`, it reads from the local cache maintained by `swr`.
 
 ```jsx
 import useSWR from "swr";
@@ -947,13 +957,10 @@ export function UserDetailCard({ id }: { id: string }) {
 
 This component uses the `useSWR` hook for data fetching, making the `UserDetailCard` dynamically load user details based on the given `id`. `useSWR` offers efficient data fetching with caching, revalidation, and automatic error handling. The component displays a loading state until the data is fetched. Once the data is available, it proceeds to render the user details.
 
-I would like to recap a bit before we move to the second half of the article. We have discussed two common issues in data fetching: parallel request and lazy loading.
 
-Ideally, you should level up the request to an upper level and send them in parallel when you can, even though in some cases it might not be feasible to do so. For example, if you’re working on a higher-level component and doesn’t have knowledge about the children components (could be other teams working on them).
+As we transition to the next part of our discussion, we've already explored critical data fetching strategies: Parallel Data Fetching, Code Splitting, and Prefetching. Elevating requests for parallel execution enhances efficiency, though it's not always straightforward, especially when dealing with components developed by different teams without full visibility. Code splitting allows for the dynamic loading of non-critical resources based on user interaction, like clicks or hovers, utilizing prefetching to parallelize resource loading. 
 
-And for lazy load, try to split these non-critical rendering or data fetching into a separate bundle, so they can be loaded dynamically based on user interaction, e.g., a button click or hover. And you can use preload to make the JavaScript downloading and data fetching parallel.
-
-You might also be aware that all of the techniques we discussed are based on one assumption - the backend returns data and the frontend uses these data. But if we step back a bit and consider this: do we really need to divide the frontend and backend clearly, extensively? Can we in any way, allow the backend to return more data so we don’t have to fetch them in the first place?
+This discussion presupposes a traditional division between backend data provision and frontend consumption. Yet, it's worth questioning whether a more integrated approach, where the backend supplies a richer dataset and content upfront, could minimize or eliminate the need for additional fetches, challenging the conventional frontend-backend dichotomy.
 
 ## Shifting to the Server Side
 
@@ -1277,7 +1284,7 @@ We've covered a wide range of patterns and how they apply to various challenges.
 
 ## Choosing the right pattern
 
-Selecting the appropriate pattern for data fetching and rendering in web development is not one-size-fits-all; often, multiple strategies are combined to meet specific requirements. For example, Static Site Generation can be used for parts of a site that rarely change, supplemented by client-side Fetch-Then-Render for dynamic content or Server-Side Rendering for immediately needed data. Furthermore, non-essential sections can be split into separate bundles for lazy loading, possibly with data preloading triggered by user actions, such as hover or click. 
+Selecting the appropriate pattern for data fetching and rendering in web development is not one-size-fits-all; often, multiple strategies are combined to meet specific requirements. For example, Static Site Generation can be used for parts of a site that rarely change, supplemented by client-side Fetch-Then-Render for dynamic content or Server-Side Rendering for immediately needed data. Furthermore, non-essential sections can be split into separate bundles for lazy loading, possibly with data prefetching triggered by user actions, such as hover or click. 
 
 Consider the Jira issue page as an example. The top navigation and sidebar are static, loading first to give users immediate context. Early on, you're presented with the issue's title, description, and key details like the Reporter and Assignee. For less immediate information, such as the History section at an issue's bottom, it loads only upon user interaction, like clicking a tab. This utilizes lazy loading and data fetching to efficiently manage resources and enhance user experience.
 
@@ -1291,7 +1298,7 @@ Data fetching is a nuanced aspect of development, yet mastering the appropriate 
 
 - **Parallel Requests**: Maximize efficiency by fetching data in parallel, reducing wait times and boosting the responsiveness of your application.
 - **Lazy Loading with Suspense**: Employ lazy loading for non-essential components during the initial load, leveraging Suspense for graceful handling of loading states and code splitting, thereby ensuring your application remains performant.
-- **Data Preloading**: By preemptively loading data based on predicted user actions, you can achieve a smooth and fast user experience.
+- **Data Prefetching**: By preemptively loading data based on predicted user actions, you can achieve a smooth and fast user experience.
 - **Declarative Data Fetching via Suspense**: React's enhanced Suspense model supports a more declarative approach to fetching data asynchronously, streamlining your codebase.
 - **Server-Side Rendering (SSR)**: Utilizing SSR, especially with React Server Components and Suspense, can significantly improve your app's speed and SEO, swiftly delivering content to users.
 - **Static Site Generation (SSG)**: SSG proves invaluable for static content, working alongside dynamic rendering to speed up load times and optimize resource use.
