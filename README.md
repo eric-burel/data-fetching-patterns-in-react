@@ -2,15 +2,13 @@
 
 Today, most applications can send hundreds of requests for a single page. For example, my Twitter home page sends around 300 requests, and an Amazon product details page sends around 600 requests. Some of them are for static assets (JavaScript, CSS, font files, icons, etc.), but there are still around 100 requests for async data fetching - either for timelines, friends, or product recommendations, as well as analytics events. That’s quite a lot.
 
-The main reason a page may contain so many requests is to improve performance, specifically to make the application feel faster to users. The era of blank pages taking 5 seconds to load is long gone. In modern web applications, users typically see a basic page with style and other elements in less than a second, with additional pieces loading progressively.
+The main reason a page may contain so many requests is to improve performance and user experience, specifically to make the application *feel* faster to the end users. The era of blank pages taking 5 seconds to load is long gone. In modern web applications, users typically see a basic page with style and other elements in less than a second, with additional pieces loading progressively.
 
-Take the Amazon product detail page as an example. The navigation and top bar appear almost immediately, followed by the product images, brief, and descriptions. Then, as you scroll, "Sponsored" content, ratings, recommendations, view histories, and more appear.
+Take the Amazon product detail page as an example. The navigation and top bar appear almost immediately, followed by the product images, brief, and descriptions. Then, as you scroll, "Sponsored" content, ratings, recommendations, view histories, and more appear.Often, a user only wants a quick glance or to compare products (and check availability), making sections like "Customers who bought this item also bought" less critical and suitable for loading via separate requests.
 
-Often, a user only wants a quick glance or to compare products (and check availability), making sections like "Customers who bought this item also bought" less critical and suitable for loading via separate requests.
+Breaking down the content into smaller pieces and loading them in parallel is an effective strategy, but it's far from enough in large applications. There are many other aspects to consider when it comes to fetch data correctly and efficiently. Data fetching is a chellenging, not only because the nature of async programming doesn't fit our linear mindset, and there are so many factors can cause a network call to fail, but also there are too many not-obvious cases to consider under the hood (data format, security, cache, token expiry, etc.).
 
-Breaking down the content into smaller pieces and loading them in parallel is an effective strategy. However, in many scenarios, there are many other aspects to consider when it comes to apply different techniques in data fetching. Data fetching is a hard, not only because the nature of async programming doesn't fit our linear mindset, there are so many factors can cause a network call to fail, but also there are too many not-obvious cases to consider under the hood (data format, security, cache, token expire, peak time on server, etc.).
-
-In this article, I would like to discuss a few common problems and patterns you should consider when it comes to getting data from the server side.
+In this article, I would like to discuss some common problems and patterns you should consider when it comes to fetching data in your frontend applications.
 
 We'll begin with the Asynchronous State Management pattern, which decouples data fetching from the UI, streamlining your application architecture. Next, we'll delve into Declarative Data Fetching, enhancing the intuitiveness of your data fetching logic. To accelerate the initial data loading process, we'll explore strategies for avoiding Request Waterfalls and implementing Parallel Fetching. Our discussion will then cover Code Splitting to defer loading non-critical application parts and Prefetching data based on user interactions to elevate the user experience.
 
@@ -20,15 +18,15 @@ I believe discussing these concepts through a straightforward example is the bes
 
 It's important to note that the techniques we're covering are not exclusive to React or any specific frontend framework or library. I've chosen React for illustration purposes due to my extensive experience with it in recent years. However, principles like code splitting and server-side rendering are applicable across frameworks like Angular or Vue.js. The examples I'll share are common scenarios you might encounter in frontend development, regardless of the framework you use.
 
-Alright, let’s dive into the example we’re going to use throughout the article, a `Profile` page.
+That said, let’s dive into the example we’re going to use throughout the article, a `Profile` screen of a Single-Page Application. It's a typical application you might have used before, or at least the scenario is typical. We need to fetch data from server side and then at frontend to build the UI dynamically with JavaScript.
 
 ## Introducing the application
 
-Let’s say we’re building a single-page application, and we’ll be specifically working on the Profile screen. To begin with, on `Profile` we’ll show the user’s brief (including name, avatar, and a short description), and then we also want to show their connections (similar to followers on Twitter or LinkedIn connections). We'll need to fetch user and their connections data from remote service, and then assembling these data with UI on the screen.
+To begin with, on `Profile` we’ll show the user’s brief (including name, avatar, and a short description), and then we also want to show their connections (similar to followers on Twitter or LinkedIn connections). We'll need to fetch user and their connections data from remote service, and then assembling these data with UI on the screen.
 
 ![Profile screen](images/user-brief-and-friends.png)
 
-The data are from two separate API calls, the user brief API `/users/<id>` returns user information for a given user id, which is a simple object described as follows:
+The data are from two separate API calls, the user brief API `/users/<id>` returns user brief for a given user id, which is a simple object described as follows:
 
 ```json
 {
@@ -43,7 +41,7 @@ The data are from two separate API calls, the user brief API `/users/<id>` retur
 }
 ```
 
-And the friend API `/users/<id>/friends` endpoint returns a list of friends for a given user, each list item in the response is the same as the above user data. The reason we have two endpoints instead of returning a `friends` section of the user API is that there are cases where one could have too many friends (say 1,000), which will make it less flexible to paginate (as well as we want the response to be small) compared to the separate endpoints.
+And the friend API `/users/<id>/friends` endpoint returns a list of friends for a given user, each list item in the response is the same as the above user data. The reason we have two endpoints instead of returning a `friends` section of the user API is that there are cases where one could have too many friends (say 1,000), but most people don't have many. This in-balance data structure can be pretty tricky, especially when we need to paginate. The point here is that there are cases we need to deal with multiple network requests.
 
 As this article leverages React to illustrate various patterns, I do not assume you possess comprehensive knowledge about React. Therefore, in the following section, I will briefly introduce some concepts we're going to utilize throughout this article. If you have prior experience with React—perhaps having built a data-fetching application with basic state management using the `useState` and `useEffect` hooks—you may choose to skip ahead to the next section. For those seeking a more thorough tutorial, the [new React documentation](https://react.dev/) is an excellent resource.
 
@@ -116,13 +114,23 @@ Beneath the surface, React invokes the native DOM API (e.g., `document.createEle
 ```tsx
 import React from 'react';
 import Navigation from './Navigation.tsx';
+import Content from './Content.tsx';
+import Sidebar from './Sidebar.tsx';
+import ProductList from './ProductList.tsx';
 
 function App() {
   return <Page />;
 }
 
 function Page() {
-  return <Navigation />;
+  return <Container>
+    <Navigation />
+    <Content>
+      <Sidebar />
+      <ProductList />
+    </Content>
+    <Footer />
+  </Container>;
 }
 ```
 
@@ -416,21 +424,21 @@ React will try to render the component initially, but as the data `user` isn’t
 
 If we visualize the timeline of the above code, you will see the following sequence. The browser firstly downloads the HTML page, and then when it encounters script tags and style tags, it might stop and download these files, and then parse them to form the final page. Note that this is a relatively complicated process, and I’m oversimplifying here, but the basic idea of the sequence is correct.
 
-So React can start to render only when the JS are parsed and executed, and then it finds the `useEffect` for data fetching; it has to wait until the data is available for a re-render.
-
 ![Fetching user data](images/timeline-1-1-one-request-trans.png)
 
-Now in the browser, we can see a "loading..." when the application starts and then (after a few seconds - we can simulate such case by add some delay in the API endpoints) the user brief section when data is loaded.
+So React can start to render only when the JS are parsed and executed, and then it finds the `useEffect` for data fetching; it has to wait until the data is available for a re-render.
+
+Now in the browser, we can see a "loading..." when the application starts, and then after a few seconds (we can simulate such case by add some delay in the API endpoints) the user brief section shows up when data is loaded.
 
 ![User brief component](images/user-brief.png)
 
-This code structure is widely used across React codebases, especially those requiring data fetching from an API endpoint. In applications of regular size, it's common to find numerous instances of such data-fetching logic dispersed throughout various components. 
+This code structure (in useEffect to trigger request, and update states like `loading` and `error` correspondingly) is widely used across React codebases. In applications of regular size, it's common to find numerous instances of such same data-fetching logic dispersed throughout various components.
 
 ## Pattern: Asynchronous State Handler
 
-Reusable Logic for Data Fetching and State Management.
+Reusable Logic for Data Fetching and Related State Management.
 
-In UI components, managing states such as "isSelected" or "searchResults" is commonplace. However, introducing asynchronous request-related states—namely loading, error, and data—into the mix can clutter the component. These states often appear together and managing them alongside other states can make the component harder to read and maintain. It's practical, then, to encapsulate these related states and separate this logic into its own space.
+In UI components, managing states such as "isSelected" or "searchResults" is commonplace. However, introducing asynchronous request-related states — namely loading, error, and data — into the mix can clutter the component. These states often appear together and managing them alongside other states can make the component harder to read and maintain. It's practical, then, to encapsulate these related states and separate this logic into its own space.
 
 Within this distinct unit, we can initiate data fetching and subsequently return states that reflect the stages of the request: loading, error, and the actual data. This allows the UI component consuming these states to make informed decisions on what to render based on their current values.
 
@@ -714,7 +722,7 @@ As applications expand, managing an increasing number of requests at root level 
 
 ### When it doesn't work
 
- Parallel Data Fetching isn't a universal solution. In fact, there are situations where requests cannot be made in parallel. For example, generating a recommendation feed on the `Profile` page that requires users' **interests**, and user's *interests* only comes from a user API's response, the sequential dependency means parallelization isn't feasible.
+Parallel Data Fetching isn't a universal solution. In fact, there are situations where requests cannot be made in parallel. For example, generating a recommendation feed on the `Profile` page that requires users' **interests**, and user's *interests* only comes from a user API's response, the sequential dependency means parallelization isn't feasible.
 
 ```json
 {
