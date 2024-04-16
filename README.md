@@ -10,7 +10,7 @@ Breaking down the content into smaller pieces and loading them in parallel is an
 
 In this article, I would like to discuss some common problems and patterns you should consider when it comes to fetching data in your frontend applications.
 
-We'll begin with the Asynchronous State Management pattern, which decouples data fetching from the UI, streamlining your application architecture. Next, we'll delve into Declarative Data Fetching, enhancing the intuitiveness of your data fetching logic. To accelerate the initial data loading process, we'll explore strategies for avoiding Request Waterfalls and implementing Parallel Fetching. Our discussion will then cover Code Splitting to defer loading non-critical application parts and Prefetching data based on user interactions to elevate the user experience.
+We'll begin with the Asynchronous State Management pattern, which decouples data fetching from the UI, streamlining your application architecture. Next, we'll delve into Fallback Markup, enhancing the intuitiveness of your data fetching logic. To accelerate the initial data loading process, we'll explore strategies for avoiding Request Waterfalls and implementing Parallel Fetching. Our discussion will then cover Code Splitting to defer loading non-critical application parts and Prefetching data based on user interactions to elevate the user experience.
 
 Shifting our attention to server-side strategies, we'll investigate Static Site Generation, which pre-renders content, ensuring it's ready before a user's request. We'll also discuss the innovative Server Component model, integrating data fetching seamlessly with Server-Side Rendering. Lastly, we'll examine how Streaming Server-Side Rendering can significantly enhance the user experience by delivering content more dynamically and efficiently.
 
@@ -822,17 +822,17 @@ Here's an example response from the user API that includes interests:
 
 In such cases, the recommendation feed can only be fetched **after** receiving the user's interests from the initial API call. This sequential dependency prevents us from utilizing parallel fetching, as the second request relies on data obtained from the first.
 
-Given these constraints, it becomes important to discuss alternative strategies in asynchronous data management. One such strategy is the Declarative Data Fetching pattern. This approach allows developers to specify what data is needed and how it should be fetched in a way that clearly defines dependencies, making it easier to manage complex data relationships in an application.
+Given these constraints, it becomes important to discuss alternative strategies in asynchronous data management. One such strategy is the Fallback Markup pattern. This approach allows developers to specify what data is needed and how it should be fetched in a way that clearly defines dependencies, making it easier to manage complex data relationships in an application.
 
-## Pattern: Declarative Data Fetching
+## Pattern: Fallback Markup
 
-The Declarative Data Fetching is a development approach where you specify what data your application needs in a high-level, declarative way, rather than detailing how to fetch that data. 
+The Fallback Markup is a development approach where you specify what data your application needs in a high-level, declarative way, rather than detailing how to fetch that data. 
 
 This pattern leverages abstractions provided by frameworks or libraries to handle the data retrieval process, including managing states like loading, success, and error, behind the scenes. It allows developers to focus on the structure and presentation of data in their applications, promoting cleaner and more maintainable code.
 
 Let's take another look at the `Friends` component in the above section. It has to maintain three different states and register the callback in `useEffect`, setting the flag correctly at the right time, arrange the different UI for different states:
 
-```jsx
+```tsx
 const Friends = ({ id }: { id: string }) => {
   //...
   const {
@@ -871,17 +871,19 @@ If we think of declarative API, like how we build our UI with JSX, the code can 
 </WhenError>
 ```
 
-In the above code snippet, the intention is simple and clear: when an error occurs, ErrorMessage is displayed. While the operation is in progress, Loading is shown. Once the operation completes without errors, the Friends component is rendered.
+In the above code snippet, the intention is simple and clear: when an error occurs, `ErrorMessage` is displayed. While the operation is in progress, Loading is shown. Once the operation completes without errors, the Friends component is rendered.
 
-And that's pretty similiar to what already be implemented in a few libraries (including React and Vue.js). For example, the new Suspense in React allows developers to more effectively manage asynchronous operations within their components, improving the handling of loading states, error states, and the orchestration of concurrent tasks.
+And the code snippet above is pretty similiar to what already be implemented in a few libraries (including React and Vue.js). For example, the new `Suspense` in React allows developers to more effectively manage asynchronous operations within their components, improving the handling of loading states, error states, and the orchestration of concurrent tasks.
 
-Suspense in React is a mechanism for efficiently handling asynchronous operations, such as data fetching or resource loading, in a declarative manner. By wrapping components in a Suspense boundary, developers can specify fallback content to display while waiting for the component's data dependencies to be fulfilled, streamlining the user experience during loading states.
+### Implementing Fallback Markup in React with Suspense
+
+`Suspense` in React is a mechanism for efficiently handling asynchronous operations, such as data fetching or resource loading, in a declarative manner. By wrapping components in a `Suspense` boundary, developers can specify fallback content to display while waiting for the component's data dependencies to be fulfilled, streamlining the user experience during loading states.
 
 While with the Suspense API, in the `Friends` you describe what you want to get and then render:
 
 ```jsx
 import useSWR from "swr";
-import {get} from "../utils.ts";
+import { get } from "../utils.ts";
 
 function Friends({ id }: { id: string }) {
   const { data: users } = useSWR("/api/profile", () => get<User[]>(`/users/${id}/friends`), {
@@ -901,7 +903,7 @@ function Friends({ id }: { id: string }) {
 }
 ```
 
-And declaratively when you use the `Friends`, you use Suspense Boundary to wrap around the Friends component:
+And declaratively when you use the `Friends`, you use `Suspense` boundary to wrap around the `Friends` component:
 
 ```tsx
 <Suspense fallback={<FriendsSkeleton />}>
@@ -911,7 +913,9 @@ And declaratively when you use the `Friends`, you use Suspense Boundary to wrap 
 
 `Suspense` manages the asynchronous loading of the `Friends` component, showing a `<FriendsSkeleton />` placeholder until the component's data dependencies are resolved. This setup ensures that the user interface remains responsive and informative during data fetching, improving the overall user experience by seamlessly integrating loading state management.
 
-It's worth noting that Vue.js is also exploring a similar experimental pattern, where you can employ declarative data fetching using:
+### Use the pattern in Vue.js
+
+It's worth noting that Vue.js is also exploring a similar experimental pattern, where you can employ Fallback Markup using:
 
 ```text
 <Suspense>
@@ -925,6 +929,40 @@ It's worth noting that Vue.js is also exploring a similar experimental pattern, 
 ```
 
 Upon the first render, `<Suspense>` attempts to render its default content behind the scenes. Should it encounter any asynchronous dependencies during this phase, it transitions into a pending state, where the fallback content is displayed instead. Once all the asynchronous dependencies are successfully loaded, `<Suspense>` moves to a resolved state, and the content initially intended for display (the default slot content) is rendered.
+
+### Deciding Placement for the Loading Component
+
+You may wonder where to place the `FriendsSkeleton` component and who should manage it. Typically, without using Fallback Markup, this decision is straightforward and handled directly within the component that manages the data fetching:
+
+```tsx
+const Friends = ({ id }: { id: string }) => {
+  // Data fetching logic here...
+  
+  if (loading) {
+    // Display loading indicator
+  }
+
+  if (error) {
+    // Display error message component
+  }
+
+  // Render the actual friend list
+};
+```
+
+In this setup, the logic for displaying loading indicators or error messages is naturally situated within the `Friends` component. However, adopting the Fallback Markup pattern shifts this responsibility to the component’s consumer:
+
+```tsx
+<Suspense fallback={<FriendsSkeleton />}>
+  <Friends id={id} />
+</Suspense>
+```
+
+In real-world applications, the optimal approach to handling loading experiences depends significantly on the desired user interaction and the structure of the application. For instance, a hierarchical loading approach where a parent component ceases to show a loading indicator while its children components continue can disrupt the user experience. Thus, it's crucial to carefully consider at what level within the component hierarchy the loading indicators or skeleton placeholders should be displayed.
+
+Think of `Friends` and `FriendsSkeleton` as two distinct component states—one representing the presence of data, and the other, the absence. This concept is somewhat analogous to using a [Speical Case](https://martinfowler.com/eaaCatalog/specialCase.html) pattern in object-oriented programming, where `FriendsSkeleton` serves as the 'null' state handling for the `Friends` component.
+
+The key is to determine the granularity with which you want to display loading indicators and to maintain consistency in these decisions across your application. Doing so helps achieve a smoother and more predictable user experience.
 
 ## Introducing UserDetailCard comopnent
 
@@ -1151,7 +1189,7 @@ export function UserDetailCard({ id }: { id: string }) {
 
 This component uses the `useSWR` hook for data fetching, making the `UserDetailCard` dynamically load user details based on the given `id`. `useSWR` offers efficient data fetching with caching, revalidation, and automatic error handling. The component displays a loading state until the data is fetched. Once the data is available, it proceeds to render the user details.
 
-As we transition to the next part of our discussion, we've already explored critical data fetching strategies: Parallel Data Fetching, Code Splitting, Declarative Data Fetching and Prefetching. Elevating requests for parallel execution enhances efficiency, though it's not always straightforward, especially when dealing with components developed by different teams without full visibility. Code splitting allows for the dynamic loading of non-critical resources based on user interaction, like clicks or hovers, utilizing prefetching to parallelize resource loading. 
+As we transition to the next part of our discussion, we've already explored critical data fetching strategies: Parallel Data Fetching, Code Splitting, Fallback Markup and Prefetching. Elevating requests for parallel execution enhances efficiency, though it's not always straightforward, especially when dealing with components developed by different teams without full visibility. Code splitting allows for the dynamic loading of non-critical resources based on user interaction, like clicks or hovers, utilizing prefetching to parallelize resource loading. 
 
 This discussion presupposes a traditional division between backend data provision and frontend consumption. Yet, it's worth questioning whether a more integrated approach, where the backend supplies a richer dataset and content upfront, could minimize or eliminate the need for additional fetches, challenging the conventional frontend-backend dichotomy.
 
@@ -1406,7 +1444,7 @@ Moreover, certain strategies require additional setup compared to default, less 
 Data fetching is a nuanced aspect of development, yet mastering the appropriate techniques can vastly enhance our applications. As we conclude our journey through data fetching and content rendering strategies within the context of React, it's crucial to highlight our main insights:
 
 - **Asynchronous State Handler**: Utilize custom hooks or composable APIs to abstract data fetching and state management away from your components. This pattern centralizes asynchronous logic, simplifying component design and enhancing reusability across your application.
-- **Declarative Data Fetching**: React's enhanced Suspense model supports a more declarative approach to fetching data asynchronously, streamlining your codebase.
+- **Fallback Markup**: React's enhanced Suspense model supports a more declarative approach to fetching data asynchronously, streamlining your codebase.
 - **Parallel Data Fetching**: Maximize efficiency by fetching data in parallel, reducing wait times and boosting the responsiveness of your application.
 - **Lazy Loading with Suspense**: Employ lazy loading for non-essential components during the initial load, leveraging Suspense for graceful handling of loading states and code splitting, thereby ensuring your application remains performant.
 - **Data Prefetching**: By preemptively loading data based on predicted user actions, you can achieve a smooth and fast user experience.
