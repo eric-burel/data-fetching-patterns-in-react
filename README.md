@@ -622,7 +622,7 @@ const {
 
 By using useService, we can simplify how components fetch and handle data, making the codebase cleaner and more maintainable.
 
-### Variation of the Handler
+### Variation of the pattern
 
 A variation of the `useUser` would be expose the `fetchUsers` function, and it does not trigger the data fetching itself:
 
@@ -668,6 +668,14 @@ const Profile = ({ id }: { id: string }) => {
 ```
 
 The advantage of this division is the ability to reuse these stateful logics across different components. For instance, another component needing the same data (a user API call with a user ID) can simply import the `useUser` Hook and utilize its states. Different UI components might choose to interact with these states in various ways, perhaps using alternative loading indicators (a smaller spinner that fits to the calling component) or error messages, yet the fundamental logic of fetching data remains consistent and shared.
+
+### When it doesn't work
+
+Separating data fetching logic from UI components can sometimes introduce unnecessary complexity, particularly in smaller applications. Keeping this logic integrated within the component, similar to the css-in-js approach, simplifies navigation and is easier for some developers to manage. In my article, [Modularizing React Applications with Established UI Patterns](https://martinfowler.com/articles/modularizing-react-apps.html), I explored various levels of complexity in application structures. For applications that are limited in scope — with just a few pages and several data fetching operations — it's often practical and also recommended to maintain data fetching *within* the UI components.
+
+However, as your application scales and the development team grows, this strategy may lead to inefficiencies. Deep component trees can slow down your application (we will see examples as well as how to address them in the following sections) and generate redundant boilerplate code. Introducing an Asynchronous State Handler can mitigate these issues by decoupling data fetching from UI rendering, enhancing both performance and maintainability.
+
+It’s crucial to balance simplicity with structured approaches as your project evolves. This ensures your development practices remain effective and responsive to the application's needs, maintaining optimal performance and developer efficiency regardless of the project scale.
 
 ## Implement the Friends list
 
@@ -1126,6 +1134,8 @@ document.getElementById('button').addEventListener('mouseover', () => {
 
 And in the place that needs the data to render, it reads from `sessionStorage` when available, otherwise showing a loading indicator. Normally the user experiense would be much faster.
 
+### Implementing Prefetching in React
+
 For example, we can use `preload` from the `swr` package (the function name is a bit misleading, but it is performing a prefetch here), and then register an `onMouseEnter` event to the trigger component of `Popover`,
 
 ```jsx
@@ -1234,11 +1244,17 @@ Static Site Generation (SSG) is a method where web pages are pre-rendered at bui
 
 Unlike dynamic sites that generate content on the fly with each request, SSG prepares all pages in advance. This approach means that a server simply serves pre-built HTML, CSS, and JavaScript files to the browser without the need to execute server-side code or database queries at runtime.
 
+Static Site Generation have become a popular choice for blog creation, especially among users who prefer writing in Markdown, such as those using Jekyll on GitHub Pages. These tools are favored for their simplicity, allowing content creators to focus solely on their writing without worrying about the underlying technology.
+
+SSGs aren't just limited to converting Markdown into HTML, they have broader applications. For instance, content can be managed through a Content Management System (CMS), where it is stored and maintained separately from the website's codebase. This setup is particularly advantageous for product catalogs, where content designers and producers input information into the CMS, and an SSG periodically generates a static website. This process results in websites that load very quickly because all the data fetching and content generation occur before the site is published. Once generated, the content on these sites remains unchanged until the next update cycle.
+
 Static Site Generation (SSG) offers numerous benefits, including enhanced load speeds due to the ability to serve static files swiftly from a Content Delivery Network (CDN). It also bolsters security since it eliminates direct interaction with databases or server-side applications. Additionally, SSG can significantly improve SEO outcomes because the content becomes immediately available upon page load.
 
 Like other patterns we discussed so far, SSG's utility isn't confined to any specific frontend library; its application predates many of these libraries. Developers have the flexibility to implement SSG using various backend technologies, such as PHP, Ruby, or Java. However, in contexts where you and your team possess expertise in building client-side React applications, or where existing logic from such applications can be repurposed for static site generation, leveraging isomorphic React could be particularly advantageous.
 
-SSG is especially favored for projects like blogs, documentation sites, and marketing websites, where the content remains static or seldom changes. For instance, if we want to generate some advertisements when the website is built (instead of everytime when user request the page), we can define a React Server Component like the following:
+### Implementing Static Site Generation in React
+
+For instance, if we want to generate some advertisements when the website is built (instead of everytime when user request the page), we can define a React Server Component like the following:
 
 ```jsx
 async function getAds(): Promise<Ad[]> {
