@@ -765,6 +765,8 @@ const App = () => {
 }
 ```
 
+### Implementing Parallel Data Fetching in React
+
 Upon application launch, data fetching begins, abstracting the fetching process from subcomponents. For example, in Profile component, both UserBrief and Friends are presentational components that react to the passed data. This way we could develop these component separately (adding styles for different states, for example). These presentational components normally are easy to test and modify as we have separate the data fetching and rendering.
 
 ```jsx
@@ -831,6 +833,12 @@ Here's an example response from the user API that includes interests:
 In such cases, the recommendation feed can only be fetched **after** receiving the user's interests from the initial API call. This sequential dependency prevents us from utilizing parallel fetching, as the second request relies on data obtained from the first.
 
 Given these constraints, it becomes important to discuss alternative strategies in asynchronous data management. One such strategy is the Fallback Markup pattern. This approach allows developers to specify what data is needed and how it should be fetched in a way that clearly defines dependencies, making it easier to manage complex data relationships in an application.
+
+Another example of when arallel Data Fetching is not applicable is that in scenarios involving user interactions that require real-time data validation. 
+
+Consider the case of a list where each item has an "Approve" context menu. When a user clicks on the "Approve" option for an item, a dropdown menu appears offering choices to either "Approve" or "Reject." If this item's approval status could be changed by another admin concurrently, then the menu options must reflect the most current state to avoid conflicting actions.
+
+To handle this, a service call is initiated each time the context menu is activated. This service fetches the latest status of the item, ensuring that the dropdown is constructed with the most accurate and current options available at that moment. As a result, these requests cannot be made in parallel with other data-fetching activities since the dropdown's contents depend entirely on the real-time status fetched from the server.
 
 ## Pattern: Fallback Markup
 
@@ -1024,11 +1032,11 @@ We’re using `Popover` and the supporting components from `nextui`, which provi
 
 ![Component structure with UserDetailCard](images/async-components-3-trans.png)
 
-## Pattern: Code splitting
+## Pattern: Code Splitting
 
 Divide code into separate modules and dynamically load them as needed.
 
-Code splitting addresses the issue of large bundle sizes in web applications by dividing the bundle into smaller chunks that are loaded as needed, rather than all at once. This improves initial load time and performance, especially important for large applications or those with many routes.
+Code Splitting addresses the issue of large bundle sizes in web applications by dividing the bundle into smaller chunks that are loaded as needed, rather than all at once. This improves initial load time and performance, especially important for large applications or those with many routes.
 
 This optimization is typically carried out at build time, where complex or sizable modules are segregated into distinct bundles. These are then dynamically loaded, either in response to user interactions or preemptively, in a manner that does not hinder the critical rendering path of the application.
 
@@ -1453,7 +1461,7 @@ Consider the Jira issue page as an example. The top navigation and sidebar are s
 
 ![Using patterns together](images/multiple-patterns-trans.png)
 
-Moreover, certain strategies require additional setup compared to default, less optimized solutions. For instance, implementing lazy loading necessitates bundler support. If your current bundler lacks this capability, an upgrade may be required, which could be impractical for older, less stable systems. Additionally, Server Components and streaming SSR are not yet widely implemented across projects, so there may be a waiting period until your organization's infrastructure supports these features.
+Moreover, certain strategies require additional setup compared to default, less optimized solutions. For instance, implementing Code Spliting requires bundler support. If your current bundler lacks this capability, an upgrade may be required, which could be impractical for older, less stable systems. Additionally, Server Components and Streaming SSR are not yet widely implemented across projects, so there may be a waiting period until your organization's infrastructure supports these features.
 
 ## Conclusion
 
@@ -1462,7 +1470,7 @@ Data fetching is a nuanced aspect of development, yet mastering the appropriate 
 - **Asynchronous State Handler**: Utilize custom hooks or composable APIs to abstract data fetching and state management away from your components. This pattern centralizes asynchronous logic, simplifying component design and enhancing reusability across your application.
 - **Fallback Markup**: React's enhanced Suspense model supports a more declarative approach to fetching data asynchronously, streamlining your codebase.
 - **Parallel Data Fetching**: Maximize efficiency by fetching data in parallel, reducing wait times and boosting the responsiveness of your application.
-- **Lazy Loading with Suspense**: Employ lazy loading for non-essential components during the initial load, leveraging Suspense for graceful handling of loading states and code splitting, thereby ensuring your application remains performant.
+- **Code Splitting**: Employ lazy loading for non-essential components during the initial load, leveraging Suspense for graceful handling of loading states and code splitting, thereby ensuring your application remains performant.
 - **Data Prefetching**: By preemptively loading data based on predicted user actions, you can achieve a smooth and fast user experience.
 - **Static Site Generation (SSG)**: SSG proves invaluable for static content, working alongside dynamic rendering to speed up load times and optimize resource use.
 - **Server Component**: This pattern involves rendering components directly on the server, allowing for rich interactions without sending the component code to the client. It reduces the amount of JavaScript required on the client-side, speeding up load times and improving overall performance by executing data fetching, templating, and rendering on the server.
