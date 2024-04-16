@@ -671,11 +671,11 @@ The advantage of this division is the ability to reuse these stateful logics acr
 
 ## Implement the Friends list
 
-Now let’s have a look at the second section of the Profile - the friend list. We can create a separate component `Friends` and fetch data in it (by using a useFriends custom hook like the useUser defined above), and the logic is pretty similar to what we see above in the `Profile` component.
+Now let’s have a look at the second section of the Profile - the friend list. We can create a separate component `Friends` and fetch data in it (by using a useService custom hook we defined above), and the logic is pretty similar to what we see above in the `Profile` component.
 
 ```tsx
 const Friends = ({ id }: { id: string }) => {
-  const { loading, error, users } = useFriends(id);
+  const { loading, error, data: friends } = useService(`/users/${id}/friends`);
   
   // loading & error handling...
 
@@ -683,7 +683,7 @@ const Friends = ({ id }: { id: string }) => {
     <div>
       <h2>Friends</h2>
       <div>
-        {users.map((user) => (
+        {friends.map((user) => (
         // render user list
         ))}
       </div>
@@ -803,7 +803,9 @@ As applications expand, managing an increasing number of requests at root level 
 
 ### When it doesn't work
 
-Parallel Data Fetching isn't a universal solution. In fact, there are situations where requests cannot be made in parallel. For example, generating a recommendation feed on the `Profile` page that requires users' **interests**, and user's *interests* only comes from a user API's response, the sequential dependency means parallelization isn't feasible.
+While parallel data fetching can significantly speed up applications by retrieving multiple datasets simultaneously, it isn't always a viable solution. Certain scenarios require sequential data fetching due to dependencies between requests. For instance, consider a scenario on a `Profile` page where generating a personalized recommendation feed depends on first acquiring the user's **interests** from a user API. 
+
+Here's an example response from the user API that includes interests:
 
 ```json
 {
@@ -818,9 +820,9 @@ Parallel Data Fetching isn't a universal solution. In fact, there are situations
 }
 ```
 
-We can only send a request for fetching the recommendation feeds **after** we have already have the response of the **user** API.
+In such cases, the recommendation feed can only be fetched **after** receiving the user's interests from the initial API call. This sequential dependency prevents us from utilizing parallel fetching, as the second request relies on data obtained from the first.
 
-Based on the discussion about Asynchronous State Management and Parallel Data Fetching, I think a related pattern about stylish of the code worth to discuss, it's the Declarative Data Fetching pattern.
+Given these constraints, it becomes important to discuss alternative strategies in asynchronous data management. One such strategy is the Declarative Data Fetching pattern. This approach allows developers to specify what data is needed and how it should be fetched in a way that clearly defines dependencies, making it easier to manage complex data relationships in an application.
 
 ## Pattern: Declarative Data Fetching
 
@@ -833,7 +835,12 @@ Let's take another look at the `Friends` component in the above section. It has 
 ```jsx
 const Friends = ({ id }: { id: string }) => {
   //...
-  const { loading, error, friends, fetchFriends } = useFriends(id);
+  const {
+    loading,
+    error,
+    data: friends,
+    fetch: fetchFriends,
+  } = useService(`/users/${id}/friends`);
 
   useEffect(() => {
     fetchFriends();
