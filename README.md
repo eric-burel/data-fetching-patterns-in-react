@@ -144,7 +144,7 @@ const root = ReactDOM.createRoot(document.getElementById('root'));
 root.render(<App />);
 ```
 
-### Dynamic Content
+### Generating Dynamic Content with JSX
 
 The initial example demonstrates a straightforward use case, but let's explore how we can create content dynamically. For instance, how can we generate a list of data dynamically? In React, as illustrated earlier, a component is fundamentally a function, enabling us to pass parameters to it.
 
@@ -219,7 +219,7 @@ function App() {
 
 In this illustrative code snippet (non-functional but intended to demonstrate the concept), we manipulate the `BookList` component's displayed content by passing it an array of books. Depending on the `showNewOnly` flag, this array is either all available books or only those that are newly published, showcasing how props can be used to dynamically adjust component output.
 
-### Managing Internal State Between Renders
+### Managing Internal State Between Renders: useState
 
 Building user interfaces (UI) often transcends the generation of static HTML. Components frequently need to "remember" certain states and respond to user interactions dynamically. For instance, when a user clicks an "Add" button in a Product component, it's necessary to update the ShoppingCart component to reflect both the total price and the updated item list.
 
@@ -297,7 +297,7 @@ const [state, setState] = useState(initialState);
 
 React treats state as a snapshot; updating it doesn't alter the existing state variable but instead triggers a re-render. During this re-render, React acknowledges the updated state, ensuring the `BookList` component receives the correct data, thereby reflecting the updated book list to the user. This snapshot-like behavior of state facilitates the dynamic and responsive nature of React components, enabling them to react intuitively to user interactions and other changes.
 
-### Managing Side Effects
+### Managing Side Effects: useEffect
 
 Before diving deeper into our discussion, it's crucial to address the concept of side effects. Side effects are operations that interact with the outside world from the React ecosystem. Common examples include fetching data from a remote server or dynamically manipulating the DOM, such as changing the page title.
 
@@ -361,9 +361,35 @@ This overview offers just a quick glimpse into the concepts utilized throughout 
 
 ## Implement the Profile component
 
-Let’s create the `Profile` component to make a request and render the result. Our initial implementation could be something like the following de-facto way in a typical React codebases:
+Let’s create the `Profile` component to make a request and render the result. In typical React applications, this data fetching is handled inside a `useEffect` block. Here's an example of how this might be implemented:
 
-```jsx
+```tsx
+import { useEffect, useState } from "react";
+
+const Profile = ({ id }: { id: string }) => {
+  const [user, setUser] = useState<User | undefined>();
+
+  useEffect(() => {
+    const fetchUser = async () => {
+      const response = await fetch(`/api/users/${id}`);
+      const jsonData = await response.json();
+      setUser(jsonData);
+    };
+
+    fetchUser();
+  }, [id]);
+
+  return (
+    <UserBrief user={user} />
+  );
+};
+```
+
+This initial approach assumes network requests complete instantaneously, which is often not the case. Real-world scenarios require handling varying network conditions, including delays and failures. To manage these effectively, we incorporate loading and error states into our component. This addition allows us to provide feedback to the user during data fetching, such as displaying a loading indicator or a skeleton screen if the data is delayed, and handling errors when they occur.
+
+Here’s how the enhanced component looks with added loading and error management:
+
+```tsx
 import { useEffect, useState } from "react";
 import { get } from "../utils.ts";
 
@@ -402,7 +428,7 @@ const Profile = ({ id }: { id: string }) => {
 };
 ```
 
-For the `Profile` component, we initiate states for loading, errors, and user data with `useState`. Using `useEffect`, we fetch user data based on `id`, toggling loading status and handling errors accordingly. Upon successful data retrieval, we update the user state, else display a loading indicator. 
+Now in `Profile` component, we initiate states for loading, errors, and user data with `useState`. Using `useEffect`, we fetch user data based on `id`, toggling loading status and handling errors accordingly. Upon successful data retrieval, we update the user state, else display a loading indicator.
 
 The `get` function, as demonstrated below, simplifies fetching data from a specific endpoint by appending the endpoint to a predefined base URL. It checks the response's success status and either returns the parsed JSON data or throws an error for unsuccessful requests, streamlining error handling and data retrieval in our application. Note it's pure TypeScript code and can be used in other non-React parts of the application.
 
@@ -438,11 +464,11 @@ This code structure (in useEffect to trigger request, and update states like `lo
 
 Reusable Logic for Data Fetching and Related State Management.
 
-In UI components, managing states such as "isSelected" or "searchResults" is commonplace. However, introducing asynchronous request-related states — namely loading, error, and data — into the mix can clutter the component. These states often appear together and managing them alongside other states can make the component harder to read and maintain. It's practical, then, to encapsulate these related states and separate this logic into its own space.
+Remote calls can be slow, and it's essential not to let the UI freeze while these calls are being made. Therefore, we handle them asynchronously and use indicators to show that a process is underway, which makes the user experience better - knowing that something is happening. 
 
-Within this distinct unit, we can initiate data fetching and subsequently return states that reflect the stages of the request: loading, error, and the actual data. This allows the UI component consuming these states to make informed decisions on what to render based on their current values.
+Additionally, remote calls might fail due to connection issues, requiring clear communication of these failures to the user. Therefore, it's best to encapsulate each remote call within a handler module that manages results, progress updates, and errors. This module allows the UI to access metadata about the status of the call, enabling it to display alternative information or options if the expected results fail to materialize.
 
-Consider a function, `getAsyncStates`, which takes a URL as its parameter and returns an object containing information essential for managing asynchronous operations. This setup allows us to appropriately respond to different states of a network request, whether it's in progress, successfully resolved, or has encountered an error.
+A simple implementation could be a function `getAsyncStates` that returns these metadata, it takes a URL as its parameter and returns an object containing information essential for managing asynchronous operations. This setup allows us to appropriately respond to different states of a network request, whether it's in progress, successfully resolved, or has encountered an error.
 
 ```ts
 const { loading, error, data } = getAsyncStates(url);
@@ -458,7 +484,7 @@ if (error) {
 // Proceed to render using the data
 ```
 
-The assumption here is that `getAsyncStates` initiates the network request automatically upon being called. However, this might not always align with the caller's needs. To offer more control, we also expose a `fetch` function within the returned object, allowing the initiation of the request at a more appropriate time, according to the caller's discretion. Additionally, a `refetch` function could be provided to enable the caller to re-initiate the request as needed, such as after an error or when updated data is required. The `fetch` and `refetch` functions can be identical in implementation, or `refetch` might include logic to check for cached results and only re-fetch data if necessary.
+The assumption here is that `getAsyncStates` initiates the network request automatically upon being called. However, this might not always align with the caller's needs. To offer more control, we can also expose a `fetch` function within the returned object, allowing the initiation of the request at a more appropriate time, according to the caller's discretion. Additionally, a `refetch` function could be provided to enable the caller to re-initiate the request as needed, such as after an error or when updated data is required. The `fetch` and `refetch` functions can be identical in implementation, or `refetch` might include logic to check for cached results and only re-fetch data if necessary.
 
 ```tsx
 const { loading, error, data, fetch, refetch } = getAsyncStates(url);
@@ -484,10 +510,13 @@ if (error) {
 
 This pattern provides a versatile approach to handling asynchronous requests, giving developers the flexibility to trigger data fetching explicitly and manage the UI's response to loading, error, and success states effectively. By decoupling the fetching logic from its initiation, applications can adapt more dynamically to user interactions and other runtime conditions, enhancing the user experience and application reliability.
 
+### Implementing Asynchronous State Handler in React with hooks
+
 The pattern can be implemented in different frontend libraries. For instance, we could distill this approach into a custom Hook in a React application for the Profile component:
 
 ```tsx
 import { useEffect, useState } from "react";
+import { get } from "../utils.ts";
 
 const useUser = (id: string) => {
   const [loading, setLoading] = useState<boolean>(false);
@@ -542,6 +571,58 @@ const Profile = ({ id }: { id: string }) => {
   );
 };
 ```
+
+### Generalizing Parameter Usage
+
+In most applications, fetching different types of data—from user details on a homepage to product lists in search results and recommendations beneath them—is a common requirement. Writing separate fetch functions for each type of data can be tedious and difficult to maintain. A better approach is to abstract this functionality into a generic, reusable hook that can handle various data types efficiently.
+
+Consider treating remote API endpoints as services, and use a generic `useService` hook that accepts a URL as a parameter while managing all the metadata associated with an asynchronous request:
+
+```tsx
+import { get } from "../utils.ts";
+
+function useService<T>(url: string) {
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<Error | undefined>();
+  const [data, setData] = useState<T | undefined>();
+
+  const fetch = async () => {
+    try {
+      setLoading(true);
+      const data = await get<T>(url);
+      setData(data);
+    } catch (e) {
+      setError(e as Error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return {
+    loading,
+    error,
+    data,
+    fetch,
+  };
+}
+```
+
+This hook abstracts the data fetching process, making it easier to integrate into any component that needs to retrieve data from a remote source. It also centralizes common error handling scenarios, such as treating specific errors differently:
+
+```tsx
+import { useService } from './useService.ts';
+
+const {
+  loading,
+  error,
+  data: user,
+  fetch: fetchUser,
+} = useService(`/users/${id}`);
+```
+
+By using useService, we can simplify how components fetch and handle data, making the codebase cleaner and more maintainable.
+
+### Variation of the Handler
 
 A variation of the `useUser` would be expose the `fetchUsers` function, and it does not trigger the data fetching itself:
 
