@@ -838,6 +838,8 @@ Another example of when arallel Data Fetching is not applicable is that in scena
 
 Consider the case of a list where each item has an "Approve" context menu. When a user clicks on the "Approve" option for an item, a dropdown menu appears offering choices to either "Approve" or "Reject." If this item's approval status could be changed by another admin concurrently, then the menu options must reflect the most current state to avoid conflicting actions.
 
+![The approval list that require in-time states](images/apprval-list.png)
+
 To handle this, a service call is initiated each time the context menu is activated. This service fetches the latest status of the item, ensuring that the dropdown is constructed with the most accurate and current options available at that moment. As a result, these requests cannot be made in parallel with other data-fetching activities since the dropdown's contents depend entirely on the real-time status fetched from the server.
 
 ## Pattern: Fallback Markup
