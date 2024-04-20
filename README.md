@@ -1090,25 +1090,26 @@ This optimization is typically carried out at build time, where complex or sizab
 
 ### Leveraging the Dynamic Import Operator
 
-JavaScript's dynamic import operator facilitates this process. The following code snippet illustrates that when the `toggle` button is clicked, it asynchronously loads `calculator.js` from the server. Upon successful loading, it executes the `calculator.add` function to perform a calculation, displaying the result on the page.
+The dynamic import operator in JavaScript streamlines the process of loading modules. Though it may resemble a function call in your code, such as `import("./user-detail-card.tsx")`, it's important to recognize that `import` is actually a keyword, not a function. This operator enables the asynchronous and dynamic loading of JavaScript modules.
+
+With dynamic import, you can load a module on demand. For example, we only load a module when a button is clicked:
 
 ```js
-const result = document.querySelector("#result");
+button.addEventListener("click", (e) => {
 
-document.querySelector("#toggle").addEventListener("change", () => {
-  import("/calculator.js")
-    .then((calculator) => {
-      const addition = calculator.add(1, 5);
-      result.innerHTML = 
-        `Script calculator.js loaded successfully, function call returns ${addition}.`;
+  import("/modules/some-useful-module.js")
+    .then((module) => {
+      module.doSomethingInteresting();
     })
-    .catch((error) => {
-      result.innerHTML = `Error loading script calculator.js: ${error}.`;
+    .catch(error => {
+      console.error("Failed to load the module:", error);
     });
 });
 ```
 
-This approach is not limited to JavaScript but is also applicable in frameworks like React and libraries like Vue.js. React simplifies the implementation through the `React.lazy` and `Suspense` APIs. By wrapping the import statement with `React.lazy`, and subsequently wrapping the component, for instance, `UserDetailCard`, with `Suspense`, React defers the component rendering until the required module is loaded. During this loading phase, a fallback UI is presented, seamlessly transitioning to the actual component upon load completion.
+The module is not loaded during the initial page load. Instead, the `import()` call is placed inside an event listener so it only be loaded when, and if, the user interacts with that button.
+
+You can use dynamic import operator in React and libraries like Vue.js. React simplifies the code splitting and lazy load through the `React.lazy` and `Suspense` APIs. By wrapping the import statement with `React.lazy`, and subsequently wrapping the component, for instance, `UserDetailCard`, with `Suspense`, React defers the component rendering until the required module is loaded. During this loading phase, a fallback UI is presented, seamlessly transitioning to the actual component upon load completion.
 
 ```tsx
 import React, { Suspense } from "react";
