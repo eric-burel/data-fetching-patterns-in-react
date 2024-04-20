@@ -769,14 +769,58 @@ const App = () => {
 
 Upon application launch, data fetching begins, abstracting the fetching process from subcomponents. For example, in Profile component, both UserBrief and Friends are presentational components that react to the passed data. This way we could develop these component separately (adding styles for different states, for example). These presentational components normally are easy to test and modify as we have separate the data fetching and rendering.
 
+We can define a custom hook `useProfileData` that facilitates parallel fetching of data related to a user and their friends by using `Promise.all`. This method allows simultaneous requests, optimizing the loading process and structuring the data into a predefined format known as `ProfileData`.
+
+Here’s a breakdown of the hook implementation:
+
+```tsx
+import { useCallback, useEffect, useState } from "react";
+
+type ProfileData = {
+  user: User;
+  friends: User[];
+};
+
+const useProfileData = (id: string) => {
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<Error | undefined>(undefined);
+  const [profileState, setProfileState] = useState<ProfileData>();
+
+  const fetchProfileState = useCallback(async () => {
+    try {
+      setLoading(true);
+      const [user, friends] = await Promise.all([
+        get<User>(`/users/${id}`),
+        get<User[]>(`/users/${id}/friends`),
+      ]);
+      setProfileState({ user, friends });
+    } catch (e) {
+      setError(e as Error);
+    } finally {
+      setLoading(false);
+    }
+  }, [id]);
+
+  return {
+    loading,
+    error,
+    profileState,
+    fetchProfileState,
+  };
+};
+```
+
+This hook provides the `Profile` component with the necessary data states (`loading`, `error`, `profileState`) along with a `fetchProfileState` function, enabling the component to initiate the fetch operation as needed. Note here we use `useCallback` hook to wrap the async function for data fetching. The useCallback hook in React is used to memoize functions, ensuring that the same function instance is maintained across component re-renders unless its dependencies change. Similar to the useEffect, it accepts the function and a dependency array, the function will only be recreated if any of these dependencies change, thereby avoiding unintended behavior in React's rendering cycle.
+
+The `Profile` component uses this hook and controls the data fetching timing via `useEffect`:
+
 ```jsx
 const Profile = ({ id }: { id: string }) => {
-  const { loading, error, profileState, fetchProfileState } =
-    useProfileData(id);
+  const { loading, error, profileState, fetchProfileState } = useProfileData(id);
 
   useEffect(() => {
     fetchProfileState();
-  }, []);
+  }, [fetchProfileState]);
 
   if (loading) {
     return <div>Loading...</div>;
@@ -788,14 +832,16 @@ const Profile = ({ id }: { id: string }) => {
 
   return (
     <>
-      {profileState?.user && <UserBrief user={profileState?.user} />}
-      <Friends users={profileState?.friends ?? []} />
+      {profileState && (
+        <>
+          <UserBrief user={profileState.user} />
+          <Friends users={profileState.friends} />
+        </>
+      )}
     </>
   );
 };
 ```
-
-Within this `useEffect`, we simultaneously fetch user details and their friends using `fetchProfileState`, improving efficiency by parallelizing the network requests. Upon success, we update the respective states; on failure, we capture and set any errors encountered. This approach minimizes waiting time, ensuring both datasets are ready for rendering as soon as possible.
 
 This approach is also known as **Fetch-Then-Render**, suggesting that the aim is to initiate requests as early as possible during page load. Subsequently, the fetched data is utilized to drive React's rendering of the application, bypassing the need to manage data fetching amidst the rendering process. This strategy simplifies the rendering process, making the code easier to test and modify.
 
