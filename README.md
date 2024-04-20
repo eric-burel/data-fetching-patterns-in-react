@@ -1144,6 +1144,12 @@ If we visualize the above code, it renders in the following sequence.
 
 Note that when the user hovers and we download the JavaScript bundle, there will be some extra time for the browser to parse the JavaScript. Once that part of the work is done, we can get the user details by calling `/users/<id>/details` API. Eventually, we can use that data to render the content of the popup `UserDetailCard`.
 
+### When to Use It
+
+Splitting out extra bundles and loading them on demand is a viable strategy, but it's crucial to consider how you implement it. Requesting and processing an additional bundle can indeed save bandwidth and lets users only load what they need. However, this approach might also slow down the user experience in certain scenarios. For example, if a user hovers over a button that triggers a bundle load, it could take a few seconds to load, parse, and execute the JavaScript necessary for rendering. Even though this delay occurs only during the first interaction, it might not provide the ideal experience.
+
+To improve perceived performance, effectively using React Suspense to display a skeleton or another loading indicator can help make the loading process seem quicker. Additionally, if the separate bundle is not significantly large, integrating it into the main bundle could be a more straightforward and cost-effective approach. This way, when a user hovers over components like `UserBrief`, the response can be immediate, enhancing the user interaction without the need for separate loading steps.
+
 ### Lazy load in other frontend libraries
 
 Again, this pattern is widely adopted in other frontend libraries as well. For example, you can use `defineAsyncComponent` in Vue.js to achieve the samiliar result - only load a component when you need it to render:
@@ -1168,13 +1174,36 @@ const UserDetailCard = defineAsyncComponent(() => import('./UserDetailCard.vue')
 
 The function `defineAsyncComponent` defines an async component which is lazy loaded only when it is rendered just like the `React.lazy`.
 
-As you might have already seen the noticed, we are running into a Request Waterfall here again: we load the JavaScript bundle first, and then when it execute it sequentially call user details API, which makes some extra waiting time. We could request the JavaScript bundle and the network request parallely. Meaning, whenever a `Friend` component is hovered, we can trigger a network request and cache the result, so that by the time when the bundle is downloaded, we can use the data to render the component immediately.
+As you might have already seen the noticed, we are running into a Request Waterfall here again: we load the JavaScript bundle first, and then when it execute it sequentially call user details API, which makes some extra waiting time. We could request the JavaScript bundle and the network request parallely. Meaning, whenever a `Friend` component is hovered, we can trigger a network request (for the data to render the user details) and cache the result, so that by the time when the bundle is downloaded, we can use the data to render the component immediately.
 
 ## Pattern: Prefetching
 
 Prefetch data with user interation.
 
-Prefetching involves loading resources or data before they're needed, aiming to reduce wait times for future operations. It's particularly useful in scenarios where user actions can be anticipated, such as navigating to another page or showing a model dialog that needs remote data. In practice, prefetching can be implemented using the `fetch` API to load data or resources before they are needed. 
+Prefetching involves loading resources or data ahead of their actual need, aiming to decrease wait times during subsequent operations. This technique is particularly beneficial in scenarios where user actions can be predicted, such as navigating to a different page or displaying a modal dialog that requires remote data. 
+
+In practice, prefetching can be implemented using the native HTML `<link>` tag with a `rel="preload"` attribute, or programmatically via the `fetch` API to load data or resources in advance. For data that is predetermined, the simplest approach is to use the `<link>` tag within the HTML `<head>`:
+
+```html
+<!doctype html>
+<html lang="en">
+  <head>
+    <link rel="preload" href="/bootstrap.js" as="script">
+
+    <link rel="preload" href="/users/u1" as="fetch" crossorigin="anonymous">
+    <link rel="preload" href="/users/u1/friends" as="fetch" crossorigin="anonymous">
+
+    <script type="module" src="/app.js"></script>
+  </head>
+  <body>
+    <div id="root"></div>
+  </body>
+</html>
+```
+
+With this setup, the requests for `bootstrap.js` and user API are sent as soon as the HTML is parsed, significantly earlier than when other scripts are processed. The browser will then cache the data, ensuring it is ready when your application initializes.
+
+However, it's often not possible to know the precise URLs ahead of time, requiring a more dynamic approach to prefetching. This is typically managed programmatically, often through event handlers that trigger prefetching based on user interactions or other conditions.
 
 For example, attaching a `mouseover` event listener to a button can trigger the prefetching of data. This method allows the data to be fetched and stored, perhaps in a local state or cache, ready for immediate use when the actual component or content requiring the data is interacted with or rendered. This proactive loading minimizes latency and enhances the user experience by having data ready ahead of time.
 
@@ -1256,7 +1285,7 @@ export function UserDetailCard({ id }: { id: string }) {
 
 This component uses the `useSWR` hook for data fetching, making the `UserDetailCard` dynamically load user details based on the given `id`. `useSWR` offers efficient data fetching with caching, revalidation, and automatic error handling. The component displays a loading state until the data is fetched. Once the data is available, it proceeds to render the user details.
 
-In summary, we've already explored critical data fetching strategies: Parallel Data Fetching, Code Splitting, Fallback Markup and Prefetching. Elevating requests for parallel execution enhances efficiency, though it's not always straightforward, especially when dealing with components developed by different teams without full visibility. Code splitting allows for the dynamic loading of non-critical resources based on user interaction, like clicks or hovers, utilizing prefetching to parallelize resource loading. 
+In summary, we've already explored critical data fetching strategies: Asynchronous State Handler, Parallel Data Fetching, Fallback Markup, Code Splitting and Prefetching. Elevating requests for parallel execution enhances efficiency, though it's not always straightforward, especially when dealing with components developed by different teams without full visibility. Code splitting allows for the dynamic loading of non-critical resources based on user interaction, like clicks or hovers, utilizing prefetching to parallelize resource loading. 
 
 ## Choosing the right pattern
 
