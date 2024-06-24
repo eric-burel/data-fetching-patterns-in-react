@@ -8,6 +8,8 @@ While certain search engines (such as Google) have the capability to process Jav
 
 SSR was invented to solve this problem. Server-side rendering (SSR) is a technique where web page content is generated on the server and sent to the client as fully formed HTML, enabling faster initial page loads and improved SEO by making content immediately available to search engines.
 
+> **Here we are specifically talking about SSR for modern frontend frameworks like React. SSR was initially the "normal" way of doing things. This might not be obvious to younger developers that weren't there between 2010-2020.**
+
 Traditionally, in SSR, the components are rendered to HTML strings on the server, which are then sent to the client. This process hydrates the static markup with event handlers on the client side, turning it into a fully interactive application without needing to fetch and render the initial content on the client, enhancing performance and SEO.
 
 For example, you could use `renderToString` API to render the component tree into a HTML tree:
@@ -43,9 +45,21 @@ Static Site Generation have become a popular choice for blog creation, especiall
 
 SSGs aren't just limited to converting Markdown into HTML, they have broader applications. For instance, content can be managed through a Content Management System (CMS), where it is stored and maintained separately from the website's codebase. This setup is particularly advantageous for product catalogs, where content designers and producers input information into the CMS, and an SSG periodically generates a static website. This process results in websites that load very quickly because all the data fetching and content generation occur before the site is published. Once generated, the content on these sites remains unchanged until the next update cycle.
 
-Static Site Generation (SSG) offers numerous benefits, including enhanced load speeds due to the ability to serve static files swiftly from a Content Delivery Network (CDN). It also bolsters security since it eliminates direct interaction with databases or server-side applications. Additionally, SSG can significantly improve SEO outcomes because the content becomes immediately available upon page load.
+Static Site Generation (SSG) offers numerous benefits, including enhanced load speeds due to the ability to serve static files swiftly from a Content Delivery Network (CDN). 
+
+> **Debatable, to me there are 2 kinds of SSG. App-level caching, with a cache controlled by the framework (Next.js style). And network-level caching, so SSR + a CDN to cache renders (Remix style). Next.js coined the term "SSG" so the former approach is better known in the React world but the second one might be as common in the industry in private implementations. The speed improvements mostly comes from removing calls with a huge latency => database calls. Avoiding a render may have a perf impact but in modern versions of React this is less significant.**
+ 
+It also bolsters security since it eliminates direct interaction with databases or server-side applications. 
+
+> **I disagree with this one, the database call you need to run for a given page are the same whether it's statically rendered or rendered by request. I would rephrase by focusing on performance maybe, what you avoid is more the risk of your database being flooded by request, and some forms of DOS maybe, that would be more correct IMO.**
+
+Additionally, SSG can significantly improve SEO outcomes because the content becomes immediately available upon page load.
+
+> **Yep but I'd be eager to read more sources about that, those are claims we read often but actual objective proofs are less common.**
 
 Like other patterns we discussed so far, SSG's utility isn't confined to any specific frontend library; its application predates many of these libraries. Developers have the flexibility to implement SSG using various backend technologies, such as PHP, Ruby, or Java. However, in contexts where you and your team possess expertise in building client-side React applications, or where existing logic from such applications can be repurposed for static site generation, leveraging isomorphic React could be particularly advantageous.
+
+> **That's true with SSR as well, it's not really about SSG/SSR (when you render, what I call the "render moment" or "render time") but about rendering on the server (where you render).**
 
 ### Implementing Static Site Generation in React
 
@@ -79,9 +93,15 @@ The `Ads` component above only fetches data at build time rather than runtime. W
 
 ![Static Generated Content - Ads](images/ads.png)
 
-The component then renders HTML for each advertisement, including the ad's title and content. Since the ads are fetched during the build process, the rendered page with all its advertisements is served as static HTML to the user. This means there's no need for the client's browser to run JavaScript to fetch the ads after the page loads, leading to faster page rendering and an improved user experience. 
+The component then renders HTML for each advertisement, including the ad's title and content. Since the ads are fetched during the build process, the rendered page with all its advertisements is served as static HTML to the user. 
+
+This means there's no need for the client's browser to run JavaScript to fetch the ads after the page loads, leading to faster page rendering and an improved user experience. 
+
+> **This derives from rendering on the server, not exactly from rendering statically (the where, not the when)**
 
 If we visualize the timeline, you can clearly see that the effort to render the full version of the page is pre-made. Thus, there's no need to fetch data dynamically through side effects.
+
+> **Same comment this is a benefit of server rendering not really static rendering**
 
 ![Static Site Generation](images/timeline-1-8-static-site-generation-trans.png)
 
@@ -93,11 +113,19 @@ Server Components are components that are rendered on the server side, enabling 
 
 Traditional Server-Side Rendering (SSR) does not inherently support client-side data fetching mechanisms (like `useEffect` in React applications), which only operates in a browser environment. This limitation necessitates a system that enables data to be fetched on the server side. 
 
+> **It used to be done by parsing the React tree to extract queries, this pattern was typical of Apollo client, but yeah this was not super elegant nor common.**
+
 Server Components address this challenge by enhancing asynchronous programming techniques throughout applications. Similar mechanisms for advanced Server-Side Rendering exist in other libraries as well. However, for the purpose of our discussion on the `Profile` example, we'll continue to focus on utilizing React Server Components.
 
 ### Introducing React Server Component
 
-React Server Components allow rendering components on the server, reducing client-side bundle size and improving performance by fetching data and executing logic server-side. They seamlessly integrate with client components for an optimized, interactive user experience.
+React Server Components allow rendering components on the server, reducing client-side bundle size and improving performance by fetching data and executing logic server-side. 
+
+> **In terms of performance, I'd say it's specifically reducing latency during data fetching, and reducing the JS bundle size. The "executing logic server-side": I have more doubts, I think a React render is really fast either way, unless you really render a massive amount of client components that you turn into RSC I doubt you can measure benefits (eg I couldn't see any improvement after turning translated text to RSCs vs client comps)**
+
+They seamlessly integrate with client components for an optimized, interactive user experience.
+
+> **That's the key point of React vs PHP : React is hybrid. I think you could insist on this.**
 
 We can modify our `Friends` client component into the following, note how we call API for fetching data in the `Friends` component:
 
